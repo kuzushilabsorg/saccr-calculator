@@ -40,6 +40,7 @@ Exposure at Default (EAD) = alpha × (Replacement Cost + Potential Future Exposu
 ```
 
 Where:
+
 - **alpha** = 1.4 (regulatory constant)
 - **Replacement Cost (RC)**: Represents the loss that would occur if the counterparty defaulted today
 - **Potential Future Exposure (PFE)**: Represents the potential increase in exposure over a one-year time horizon
@@ -47,16 +48,19 @@ Where:
 #### 2. Replacement Cost (RC) Formulas
 
 For **unmargined** transactions:
+
 ```
 RC = max(V - C, 0)
 ```
 
 For **margined** transactions:
+
 ```
 RC = max(V - C, TH + MTA - NICA, 0)
 ```
 
 Where:
+
 - V = Current market value of derivatives
 - C = Haircut value of net collateral
 - TH = Threshold amount
@@ -70,6 +74,7 @@ PFE = multiplier × AddOn(aggregate)
 ```
 
 Where:
+
 - **multiplier** = min{1; 0.05 + 0.95 × exp(V - C) / (2 × AddOn(aggregate))}
 - **AddOn(aggregate)** = Sum of add-ons across all asset classes
 
@@ -111,12 +116,14 @@ The framework specifies supervisory parameters including:
 ### Installation
 
 1. Clone the repository:
+
    ```bash
    git clone https://github.com/your-username/saccr-calculator.git
    cd saccr-calculator
    ```
 
 2. Install dependencies:
+
    ```bash
    npm install
    # or
@@ -124,6 +131,7 @@ The framework specifies supervisory parameters including:
    ```
 
 3. Run the development server:
+
    ```bash
    npm run dev
    # or
@@ -158,22 +166,25 @@ The application uses Zod for robust schema validation, ensuring that all inputs 
 
 ```typescript
 // Example of the schema validation for numeric fields
-export const numberSchema = z.union([
-  z.string().refine(
-    (val) => !isNaN(parseFloat(val)),
-    { message: "Must be a valid number" }
-  ),
-  z.number()
-]).transform((val) => {
-  if (typeof val === 'string') {
-    return parseFloat(val);
-  }
-  return val;
-});
+export const numberSchema = z
+  .union([
+    z
+      .string()
+      .refine((val) => !isNaN(parseFloat(val)), {
+        message: 'Must be a valid number',
+      }),
+    z.number(),
+  ])
+  .transform((val) => {
+    if (typeof val === 'string') {
+      return parseFloat(val);
+    }
+    return val;
+  });
 
 // Netting set schema with validation
 export const nettingSetSchema = z.object({
-  nettingAgreementId: z.string().min(1, "Netting agreement ID is required"),
+  nettingAgreementId: z.string().min(1, 'Netting agreement ID is required'),
   marginType: z.nativeEnum(MarginType),
   thresholdAmount: numberSchema,
   minimumTransferAmount: numberSchema,
@@ -212,7 +223,9 @@ export function calculateMultiplier(
   aggregateAddOn: number
 ): number {
   const floor = 0.05;
-  const exp = Math.exp((currentMarketValue - collateralValue) / (2 * aggregateAddOn));
+  const exp = Math.exp(
+    (currentMarketValue - collateralValue) / (2 * aggregateAddOn)
+  );
   return Math.min(1, floor + 0.95 * exp);
 }
 ```
@@ -226,7 +239,7 @@ The main form component manages user inputs and API interactions:
 const onSubmit = async (data: FormData) => {
   setIsLoading(true);
   setError(null);
-  
+
   try {
     // Convert number values to strings for API compatibility
     const processedData = {
@@ -239,17 +252,17 @@ const onSubmit = async (data: FormData) => {
       },
       // ... process other fields
     };
-    
+
     const response = await fetch('/api/calculate/saccr', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(processedData),
     });
-    
+
     if (!response.ok) {
       throw new Error('Calculation failed');
     }
-    
+
     const result = await response.json();
     setResult(result);
   } catch (err) {
@@ -269,30 +282,33 @@ The API endpoint processes calculation requests:
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    
+
     // Validate the input data against the schema
     const validatedData = formSchema.parse(body);
-    
+
     // Extract data for calculation
     const { nettingSet, trade, collateral } = validatedData;
-    
+
     // Perform SACCR calculations
     const replacementCost = calculateReplacementCost(
       nettingSet,
       trade.currentMarketValue,
       collateral?.collateralAmount || 0
     );
-    
+
     const addOn = calculateAddOn(trade);
     const multiplier = calculateMultiplier(
       trade.currentMarketValue,
       collateral?.collateralAmount || 0,
       addOn
     );
-    
+
     const potentialFutureExposure = multiplier * addOn;
-    const exposureAtDefault = calculateExposureAtDefault(replacementCost, potentialFutureExposure);
-    
+    const exposureAtDefault = calculateExposureAtDefault(
+      replacementCost,
+      potentialFutureExposure
+    );
+
     // Prepare and return the result
     return NextResponse.json({
       exposureAtDefault,
@@ -354,7 +370,7 @@ return (
         </div>
       </CardContent>
     </Card>
-    
+
     {/* Detailed result tables */}
   </div>
 );
@@ -454,10 +470,12 @@ yarn start
 ### Basel Committee Documents
 
 1. **BCBS 279** (March 2014): "The standardized approach for measuring counterparty credit risk exposures"
+
    - Initial publication of the SA-CCR framework
    - [Link to document](https://www.bis.org/publ/bcbs279.htm)
 
 2. **BCBS 424** (December 2017): "Basel III: Finalising post-crisis reforms"
+
    - Finalization of the SA-CCR framework within Basel III
    - [Link to document](https://www.bis.org/bcbs/publ/d424.htm)
 
