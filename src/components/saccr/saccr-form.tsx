@@ -142,39 +142,40 @@ export default function SACCRForm() {
     setResult(null);
 
     try {
-      // Convert string values to numbers before sending to API
-      //   const processedData = {
-      //     ...data,
-      //     nettingSet: {
-      //       ...data.nettingSet,
-      //       thresholdAmount: parseFloat(data.nettingSet.thresholdAmount),
-      //       minimumTransferAmount: parseFloat(
-      //         data.nettingSet.minimumTransferAmount
-      //       ),
-      //       independentCollateralAmount: parseFloat(
-      //         data.nettingSet.independentCollateralAmount
-      //       ),
-      //       variationMargin: parseFloat(data.nettingSet.variationMargin),
-      //       marginPeriodOfRisk: parseFloat(data.nettingSet.marginPeriodOfRisk),
-      //     },
-      //     trade: {
-      //       ...data.trade,
-      //       notionalAmount: parseFloat(data.trade.notionalAmount),
-      //       currentMarketValue: parseFloat(data.trade.currentMarketValue),
-      //     },
-      //     collateral: {
-      //       ...data.collateral,
-      //       collateralAmount: parseFloat(data.collateral.collateralAmount),
-      //       haircut: parseFloat(data.collateral.haircut),
-      //     },
-      //   };
+      // Convert number values to strings for API compatibility
+      const processedData = {
+        ...data,
+        nettingSet: {
+          ...data.nettingSet,
+          thresholdAmount: data.nettingSet.thresholdAmount.toString(),
+          minimumTransferAmount: data.nettingSet.minimumTransferAmount.toString(),
+          independentCollateralAmount: data.nettingSet.independentCollateralAmount.toString(),
+          variationMargin: data.nettingSet.variationMargin.toString(),
+          marginPeriodOfRisk: data.nettingSet.marginPeriodOfRisk.toString(),
+        },
+        trade: {
+          ...data.trade,
+          notionalAmount: data.trade.notionalAmount.toString(),
+          currentMarketValue: data.trade.currentMarketValue.toString(),
+          // Only include asset-class specific fields if they exist
+          ...(data.trade.assetClass === AssetClass.INTEREST_RATE && {
+            paymentFrequency: (data.trade as any).paymentFrequency?.toString(),
+            resetFrequency: (data.trade as any).resetFrequency?.toString(),
+          }),
+        },
+        collateral: data.collateral ? {
+          ...data.collateral,
+          collateralAmount: data.collateral.collateralAmount.toString(),
+          haircut: data.collateral.haircut.toString(),
+        } : undefined,
+      };
 
       const response = await fetch('/api/calculate/saccr', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(data),
+        body: JSON.stringify(processedData),
       });
 
       const responseData = await response.json();
