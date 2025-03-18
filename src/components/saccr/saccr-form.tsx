@@ -61,8 +61,8 @@ export default function SACCRForm() {
         currentMarketValue: 0,
         // Add default values for asset-class specific fields
         referenceCurrency: 'USD',
-        paymentFrequency: 0,
-        resetFrequency: 0,
+        paymentFrequency: 3,
+        resetFrequency: 3,
         indexName: '',
         basis: '',
       },
@@ -105,8 +105,8 @@ export default function SACCRForm() {
     switch (value) {
       case AssetClass.INTEREST_RATE:
         newValues.referenceCurrency = 'USD';
-        newValues.paymentFrequency = '3';
-        newValues.resetFrequency = '3';
+        newValues.paymentFrequency = 3;
+        newValues.resetFrequency = 3;
         newValues.indexName = '';
         newValues.basis = '';
         break;
@@ -159,8 +159,8 @@ export default function SACCRForm() {
           currentMarketValue: data.trade.currentMarketValue.toString(),
           // Only include asset-class specific fields if they exist
           ...(data.trade.assetClass === AssetClass.INTEREST_RATE && {
-            paymentFrequency: (data.trade as any).paymentFrequency?.toString(),
-            resetFrequency: (data.trade as any).resetFrequency?.toString(),
+            paymentFrequency: (data.trade as any).paymentFrequency?.toString() || "3",
+            resetFrequency: (data.trade as any).resetFrequency?.toString() || "3",
           }),
         },
         collateral: data.collateral ? {
