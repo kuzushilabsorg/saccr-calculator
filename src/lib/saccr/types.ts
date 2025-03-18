@@ -179,33 +179,25 @@ export interface SACCRFormInput {
   nettingSet: {
     nettingAgreementId: string;
     marginType: MarginType;
-    thresholdAmount: number | string;
-    minimumTransferAmount: number | string;
-    independentCollateralAmount: number | string;
-    variationMargin: number | string;
-    marginPeriodOfRisk: number | string;
+    thresholdAmount: string | number;
+    minimumTransferAmount: string | number;
+    independentCollateralAmount: string | number;
+    variationMargin: string | number;
+    marginPeriodOfRisk: string | number;
   };
   trade: {
-    id: string;
     assetClass: AssetClass;
     transactionType: TransactionType;
     positionType: PositionType;
-    notionalAmount: number | string;
+    notionalAmount: string | number;
     currency: string;
     maturityDate: string;
-    startDate: string;
-    currentMarketValue: number | string;
-    // Asset class specific fields will be added dynamically
-    [key: string]:
-      | string
-      | number
-      | AssetClass
-      | TransactionType
-      | PositionType;
+    currentMarketValue: string | number;
+    [key: string]: string | number | AssetClass | TransactionType | PositionType | undefined;
   };
   collateral: {
-    collateralAmount: number | string;
+    collateralAmount: string | number;
     collateralCurrency: string;
-    haircut: number | string;
+    haircut: string | number;
   }[];
 }

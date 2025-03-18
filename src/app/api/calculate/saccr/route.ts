@@ -4,7 +4,7 @@ import {
   convertFormToSACCRInput,
   parseCSVToSACCRInput,
 } from '@/lib/saccr/calculator';
-import { formSchema, csvUploadSchema } from '@/lib/saccr/schema';
+import formSchema, { csvUploadSchema } from '@/lib/saccr/schema';
 import { SACCRInput, SACCRResult } from '@/lib/saccr/types';
 import { ZodError } from 'zod';
 

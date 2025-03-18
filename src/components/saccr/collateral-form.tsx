@@ -10,9 +10,10 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { FormDataType } from './saccr-form';
 
 interface CollateralFormProps {
-  form: UseFormReturn<any>;
+  form: UseFormReturn<FormDataType>;
   className?: string;
 }
 
@@ -28,7 +29,7 @@ export default function CollateralForm({
       <CardContent className="space-y-4">
         <FormField
           control={form.control}
-          name="collateral.collateralAmount"
+          name="collateral.0.collateralAmount"
           render={({ field }) => (
             <FormItem>
               <FormLabel>Collateral Amount</FormLabel>
@@ -42,7 +43,7 @@ export default function CollateralForm({
 
         <FormField
           control={form.control}
-          name="collateral.collateralCurrency"
+          name="collateral.0.collateralCurrency"
           render={({ field }) => (
             <FormItem>
               <FormLabel>Collateral Currency</FormLabel>
@@ -56,7 +57,7 @@ export default function CollateralForm({
 
         <FormField
           control={form.control}
-          name="collateral.haircut"
+          name="collateral.0.haircut"
           render={({ field }) => (
             <FormItem>
               <FormLabel>Haircut (0-1)</FormLabel>

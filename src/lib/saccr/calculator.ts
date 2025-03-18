@@ -11,7 +11,6 @@ import {
   SACCRResult,
   ReplacementCostResult,
   PotentialFutureExposureResult,
-  AddOnResult,
   SpecificTradeData,
   InterestRateTradeData,
   ForeignExchangeTradeData,
@@ -55,35 +54,37 @@ const SUPERVISORY_FACTORS = {
 };
 
 // Supervisory correlation parameters by asset class
-const SUPERVISORY_CORRELATIONS = {
-  [AssetClass.INTEREST_RATE]: 0.5,
-  [AssetClass.FOREIGN_EXCHANGE]: 0.5,
-  [AssetClass.CREDIT]: {
-    SINGLE_NAME: 0.5,
-    INDEX: 0.8,
-    DEFAULT: 0.5,
-  },
-  [AssetClass.EQUITY]: {
-    SINGLE_NAME: 0.5,
-    INDEX: 0.8,
-    DEFAULT: 0.5,
-  },
-  [AssetClass.COMMODITY]: {
-    ELECTRICITY: 0.4,
-    SAME_TYPE: 0.6,
-    DIFFERENT_TYPE: 0.2,
-    DEFAULT: 0.4,
-  },
-};
+// Commented out as it's currently unused but may be needed in future implementations
+// const SUPERVISORY_CORRELATIONS = {
+//   [AssetClass.INTEREST_RATE]: 0.5,
+//   [AssetClass.FOREIGN_EXCHANGE]: 0.5,
+//   [AssetClass.CREDIT]: {
+//     SINGLE_NAME: 0.5,
+//     INDEX: 0.8,
+//     DEFAULT: 0.5,
+//   },
+//   [AssetClass.EQUITY]: {
+//     SINGLE_NAME: 0.5,
+//     INDEX: 0.8,
+//     DEFAULT: 0.5,
+//   },
+//   [AssetClass.COMMODITY]: {
+//     ELECTRICITY: 0.4,
+//     SAME_TYPE: 0.6,
+//     DIFFERENT_TYPE: 0.2,
+//     DEFAULT: 0.4,
+//   },
+// };
 
 // Supervisory option volatilities by asset class
-const SUPERVISORY_OPTION_VOLATILITIES = {
-  [AssetClass.INTEREST_RATE]: 0.5,
-  [AssetClass.FOREIGN_EXCHANGE]: 0.15,
-  [AssetClass.CREDIT]: 1.0,
-  [AssetClass.EQUITY]: 0.8,
-  [AssetClass.COMMODITY]: 0.7,
-};
+// Commented out as it's currently unused but may be needed in future implementations
+// const SUPERVISORY_OPTION_VOLATILITIES = {
+//   [AssetClass.INTEREST_RATE]: 0.5,
+//   [AssetClass.FOREIGN_EXCHANGE]: 0.15,
+//   [AssetClass.CREDIT]: 1.0,
+//   [AssetClass.EQUITY]: 0.8,
+//   [AssetClass.COMMODITY]: 0.7,
+// };
 
 /**
  * Calculate the Replacement Cost (RC) component of SACCR
@@ -220,19 +221,22 @@ function calculateAssetClassAddOn(
     // Define hedging set key based on asset class
     switch (assetClass) {
       case AssetClass.INTEREST_RATE:
-        hedgingSetKey = (trade as any).referenceCurrency || 'DEFAULT';
+        hedgingSetKey =
+          (trade as InterestRateTradeData).referenceCurrency || 'DEFAULT';
         break;
       case AssetClass.FOREIGN_EXCHANGE:
-        hedgingSetKey = (trade as any).currencyPair || 'DEFAULT';
+        hedgingSetKey =
+          (trade as ForeignExchangeTradeData).currencyPair || 'DEFAULT';
         break;
       case AssetClass.CREDIT:
-        hedgingSetKey = (trade as any).referenceEntity || 'DEFAULT';
+        hedgingSetKey = (trade as CreditTradeData).referenceEntity || 'DEFAULT';
         break;
       case AssetClass.EQUITY:
-        hedgingSetKey = (trade as any).issuer || 'DEFAULT';
+        hedgingSetKey = (trade as EquityTradeData).issuer || 'DEFAULT';
         break;
       case AssetClass.COMMODITY:
-        hedgingSetKey = (trade as any).commodityType || 'DEFAULT';
+        hedgingSetKey =
+          (trade as CommodityTradeData).commodityType || 'DEFAULT';
         break;
     }
 
@@ -252,7 +256,8 @@ function calculateAssetClassAddOn(
 
     // Calculate effective notional for the hedging set
     hedgingSetTrades.forEach((trade) => {
-      const supervisoryFactor = getSupervisoryFactor(trade);
+      // Uncomment if needed in future calculations
+      // const supervisoryFactor = getSupervisoryFactor(trade);
       const maturityFactor = calculateMaturityFactor(trade, nettingSet);
       const delta = calculateSupervisoryDelta(trade);
 
@@ -288,7 +293,7 @@ function getSupervisoryFactor(trade: SpecificTradeData): number {
       return SUPERVISORY_FACTORS[AssetClass.FOREIGN_EXCHANGE].DEFAULT;
 
     case AssetClass.CREDIT:
-      const creditTrade = trade as any;
+      const creditTrade = trade as CreditTradeData;
       if (creditTrade.referenceEntity?.includes('INDEX')) {
         return creditTrade.creditQuality === 'INVESTMENT_GRADE'
           ? SUPERVISORY_FACTORS[AssetClass.CREDIT].INVESTMENT_GRADE_INDEX
@@ -301,13 +306,13 @@ function getSupervisoryFactor(trade: SpecificTradeData): number {
       }
 
     case AssetClass.EQUITY:
-      const equityTrade = trade as any;
+      const equityTrade = trade as EquityTradeData;
       return equityTrade.issuer?.includes('INDEX')
         ? SUPERVISORY_FACTORS[AssetClass.EQUITY].INDEX
         : SUPERVISORY_FACTORS[AssetClass.EQUITY].SINGLE_NAME;
 
     case AssetClass.COMMODITY:
-      const commodityTrade = trade as any;
+      const commodityTrade = trade as CommodityTradeData;
       const commodityType = commodityTrade.commodityType;
 
       if (commodityType === 'ELECTRICITY') {
@@ -494,7 +499,9 @@ function validateInput(input: SACCRInput): void {
  * @param csvData Array of CSV row objects
  * @returns SACCR input data
  */
-export function parseCSVToSACCRInput(csvData: any[]): SACCRInput {
+export function parseCSVToSACCRInput(
+  csvData: Record<string, string>[]
+): SACCRInput {
   if (!csvData || csvData.length === 0) {
     throw new Error('No CSV data provided');
   }
@@ -511,16 +518,20 @@ export function parseCSVToSACCRInput(csvData: any[]): SACCRInput {
   };
 
   if (nettingSet.marginType === MarginType.MARGINED) {
-    nettingSet.thresholdAmount = parseFloat(firstRow.thresholdAmount || '0');
+    nettingSet.thresholdAmount = parseFloat(
+      String(firstRow.thresholdAmount || '0')
+    );
     nettingSet.minimumTransferAmount = parseFloat(
-      firstRow.minimumTransferAmount || '0'
+      String(firstRow.minimumTransferAmount || '0')
     );
     nettingSet.independentCollateralAmount = parseFloat(
-      firstRow.independentCollateralAmount || '0'
+      String(firstRow.independentCollateralAmount || '0')
     );
-    nettingSet.variationMargin = parseFloat(firstRow.variationMargin || '0');
+    nettingSet.variationMargin = parseFloat(
+      String(firstRow.variationMargin || '0')
+    );
     nettingSet.marginPeriodOfRisk = parseFloat(
-      firstRow.marginPeriodOfRisk || '10'
+      String(firstRow.marginPeriodOfRisk || '10')
     );
   }
 
@@ -531,11 +542,11 @@ export function parseCSVToSACCRInput(csvData: any[]): SACCRInput {
       assetClass: row.assetClass as AssetClass,
       transactionType: row.transactionType as TransactionType,
       positionType: row.positionType as PositionType,
-      notionalAmount: parseFloat(row.notionalAmount),
+      notionalAmount: parseFloat(String(row.notionalAmount)),
       currency: row.currency,
       maturityDate: row.maturityDate,
       startDate: row.startDate || new Date().toISOString().split('T')[0],
-      currentMarketValue: parseFloat(row.currentMarketValue || '0'),
+      currentMarketValue: parseFloat(String(row.currentMarketValue || '0')),
     };
 
     // Add asset class specific fields
@@ -544,8 +555,8 @@ export function parseCSVToSACCRInput(csvData: any[]): SACCRInput {
         return {
           ...baseTradeData,
           referenceCurrency: row.referenceCurrency || baseTradeData.currency,
-          paymentFrequency: parseFloat(row.paymentFrequency || '3'),
-          resetFrequency: parseFloat(row.resetFrequency || '3'),
+          paymentFrequency: parseFloat(String(row.paymentFrequency || '3')),
+          resetFrequency: parseFloat(String(row.resetFrequency || '3')),
           indexName: row.indexName,
           basis: row.basis,
         } as InterestRateTradeData;
@@ -586,13 +597,16 @@ export function parseCSVToSACCRInput(csvData: any[]): SACCRInput {
     }
   });
 
-  // Parse collateral information if available
+  // Process collateral
   const collateral: SACCRInput['collateral'] = [];
-  if (firstRow.collateralAmount && parseFloat(firstRow.collateralAmount) > 0) {
+  if (
+    firstRow.collateralAmount &&
+    parseFloat(String(firstRow.collateralAmount)) > 0
+  ) {
     collateral.push({
-      collateralAmount: parseFloat(firstRow.collateralAmount),
+      collateralAmount: parseFloat(String(firstRow.collateralAmount)),
       collateralCurrency: firstRow.collateralCurrency || 'USD',
-      haircut: parseFloat(firstRow.haircut || '0'),
+      haircut: parseFloat(String(firstRow.haircut || '0')),
     });
   }
 
@@ -608,7 +622,38 @@ export function parseCSVToSACCRInput(csvData: any[]): SACCRInput {
  * @param formData Form input data
  * @returns SACCR input data
  */
-export function convertFormToSACCRInput(formData: any): SACCRInput {
+export function convertFormToSACCRInput(formData: {
+  nettingSet: {
+    nettingAgreementId: string;
+    marginType: MarginType;
+    thresholdAmount?: string | number;
+    minimumTransferAmount?: string | number;
+    independentCollateralAmount?: string | number;
+    variationMargin?: string | number;
+    marginPeriodOfRisk?: string | number;
+  };
+  trade: {
+    assetClass: AssetClass;
+    transactionType: TransactionType;
+    positionType: PositionType;
+    notionalAmount: string | number;
+    currency: string;
+    maturityDate: string;
+    currentMarketValue: string | number;
+    [key: string]:
+      | string
+      | number
+      | AssetClass
+      | TransactionType
+      | PositionType
+      | undefined;
+  };
+  collateral?: Array<{
+    collateralAmount: string | number;
+    collateralCurrency: string;
+    haircut: string | number;
+  }>;
+}): SACCRInput {
   // Extract netting set information
   const nettingSet: SACCRInput['nettingSet'] = {
     nettingAgreementId: formData.nettingSet.nettingAgreementId,
@@ -617,19 +662,19 @@ export function convertFormToSACCRInput(formData: any): SACCRInput {
 
   if (nettingSet.marginType === MarginType.MARGINED) {
     nettingSet.thresholdAmount = parseFloat(
-      formData.nettingSet.thresholdAmount || '0'
+      String(formData.nettingSet.thresholdAmount)
     );
     nettingSet.minimumTransferAmount = parseFloat(
-      formData.nettingSet.minimumTransferAmount || '0'
+      String(formData.nettingSet.minimumTransferAmount)
     );
     nettingSet.independentCollateralAmount = parseFloat(
-      formData.nettingSet.independentCollateralAmount || '0'
+      String(formData.nettingSet.independentCollateralAmount)
     );
     nettingSet.variationMargin = parseFloat(
-      formData.nettingSet.variationMargin || '0'
+      String(formData.nettingSet.variationMargin)
     );
     nettingSet.marginPeriodOfRisk = parseFloat(
-      formData.nettingSet.marginPeriodOfRisk || '10'
+      String(formData.nettingSet.marginPeriodOfRisk)
     );
   }
 
@@ -639,12 +684,14 @@ export function convertFormToSACCRInput(formData: any): SACCRInput {
     assetClass: formData.trade.assetClass as AssetClass,
     transactionType: formData.trade.transactionType as TransactionType,
     positionType: formData.trade.positionType as PositionType,
-    notionalAmount: parseFloat(formData.trade.notionalAmount),
+    notionalAmount: parseFloat(String(formData.trade.notionalAmount)),
     currency: formData.trade.currency,
     maturityDate: formData.trade.maturityDate,
     startDate:
       formData.trade.startDate || new Date().toISOString().split('T')[0],
-    currentMarketValue: parseFloat(formData.trade.currentMarketValue || '0'),
+    currentMarketValue: parseFloat(
+      String(formData.trade.currentMarketValue || '0')
+    ),
   };
 
   // Create specific trade data based on asset class
@@ -656,11 +703,15 @@ export function convertFormToSACCRInput(formData: any): SACCRInput {
         ...baseTradeData,
         referenceCurrency:
           formData.trade.referenceCurrency || baseTradeData.currency,
-        paymentFrequency: parseFloat(formData.trade.paymentFrequency || '3'),
-        resetFrequency: parseFloat(formData.trade.resetFrequency || '3'),
+        paymentFrequency: parseFloat(
+          String(formData.trade.paymentFrequency || '3')
+        ),
+        resetFrequency: parseFloat(
+          String(formData.trade.resetFrequency || '3')
+        ),
         indexName: formData.trade.indexName,
         basis: formData.trade.basis,
-      } as any;
+      } as InterestRateTradeData;
       break;
 
     case AssetClass.FOREIGN_EXCHANGE:
@@ -670,7 +721,7 @@ export function convertFormToSACCRInput(formData: any): SACCRInput {
           formData.trade.currencyPair || `${baseTradeData.currency}/USD`,
         settlementDate:
           formData.trade.settlementDate || baseTradeData.maturityDate,
-      } as any;
+      } as ForeignExchangeTradeData;
       break;
 
     case AssetClass.CREDIT:
@@ -680,7 +731,7 @@ export function convertFormToSACCRInput(formData: any): SACCRInput {
         seniority: formData.trade.seniority || 'SENIOR',
         sector: formData.trade.sector || 'CORPORATE',
         creditQuality: formData.trade.creditQuality,
-      } as any;
+      } as CreditTradeData;
       break;
 
     case AssetClass.EQUITY:
@@ -689,7 +740,7 @@ export function convertFormToSACCRInput(formData: any): SACCRInput {
         issuer: formData.trade.issuer,
         market: formData.trade.market || 'DEFAULT',
         sector: formData.trade.sector || 'DEFAULT',
-      } as any;
+      } as EquityTradeData;
       break;
 
     case AssetClass.COMMODITY:
@@ -697,23 +748,24 @@ export function convertFormToSACCRInput(formData: any): SACCRInput {
         ...baseTradeData,
         commodityType: formData.trade.commodityType,
         subType: formData.trade.subType || 'DEFAULT',
-      } as any;
+      } as CommodityTradeData;
       break;
 
     default:
       specificTradeData = baseTradeData as SpecificTradeData;
   }
 
-  // Extract collateral information
+  // Process collateral
   const collateral: SACCRInput['collateral'] = [];
-  if (
-    formData.collateral?.collateralAmount &&
-    parseFloat(formData.collateral.collateralAmount) > 0
-  ) {
-    collateral.push({
-      collateralAmount: parseFloat(formData.collateral.collateralAmount),
-      collateralCurrency: formData.collateral.collateralCurrency || 'USD',
-      haircut: parseFloat(formData.collateral.haircut || '0'),
+  if (formData.collateral && formData.collateral.length > 0) {
+    formData.collateral.forEach((item) => {
+      if (item.collateralAmount && item.collateralCurrency) {
+        collateral.push({
+          collateralAmount: parseFloat(String(item.collateralAmount)),
+          collateralCurrency: item.collateralCurrency,
+          haircut: parseFloat(String(item.haircut || 0)),
+        });
+      }
     });
   }
 
@@ -723,3 +775,89 @@ export function convertFormToSACCRInput(formData: any): SACCRInput {
     collateral: collateral.length > 0 ? collateral : undefined,
   };
 }
+
+/**
+ * Helper function to create a trade object from form data
+ */
+// function createTradeFromForm(
+//   formData: {
+//     trade: {
+//       assetClass: AssetClass;
+//       transactionType: TransactionType;
+//       positionType: PositionType;
+//       notionalAmount: string | number;
+//       currency: string;
+//       maturityDate: string;
+//       currentMarketValue: string | number;
+//       [key: string]: string | number | AssetClass | TransactionType | PositionType | undefined;
+//     };
+//   }
+// ): TradeData {
+//   const baseTradeData = {
+//     id: formData.trade.id,
+//     assetClass: formData.trade.assetClass as AssetClass,
+//     transactionType: formData.trade.transactionType as TransactionType,
+//     positionType: formData.trade.positionType as PositionType,
+//     notionalAmount: parseFloat(String(formData.trade.notionalAmount)),
+//     currency: formData.trade.currency,
+//     maturityDate: formData.trade.maturityDate,
+//     startDate: formData.trade.startDate || new Date().toISOString().split('T')[0],
+//     currentMarketValue: parseFloat(String(formData.trade.currentMarketValue || '0')),
+//   };
+
+//   // Create specific trade data based on asset class
+//   let specificTradeData: SpecificTradeData;
+
+//   switch (baseTradeData.assetClass) {
+//     case AssetClass.INTEREST_RATE:
+//       specificTradeData = {
+//         ...baseTradeData,
+//         referenceCurrency: formData.trade.referenceCurrency || baseTradeData.currency,
+//         paymentFrequency: parseFloat(String(formData.trade.paymentFrequency || '3')),
+//         resetFrequency: parseFloat(String(formData.trade.resetFrequency || '3')),
+//         indexName: formData.trade.indexName,
+//         basis: formData.trade.basis,
+//       } as InterestRateTradeData;
+//       break;
+
+//     case AssetClass.FOREIGN_EXCHANGE:
+//       specificTradeData = {
+//         ...baseTradeData,
+//         currencyPair: formData.trade.currencyPair || `${baseTradeData.currency}/USD`,
+//         settlementDate: formData.trade.settlementDate || baseTradeData.maturityDate,
+//       } as ForeignExchangeTradeData;
+//       break;
+
+//     case AssetClass.CREDIT:
+//       specificTradeData = {
+//         ...baseTradeData,
+//         referenceEntity: formData.trade.referenceEntity,
+//         seniority: formData.trade.seniority || 'SENIOR',
+//         sector: formData.trade.sector || 'CORPORATE',
+//         creditQuality: formData.trade.creditQuality,
+//       } as CreditTradeData;
+//       break;
+
+//     case AssetClass.EQUITY:
+//       specificTradeData = {
+//         ...baseTradeData,
+//         issuer: formData.trade.issuer,
+//         market: formData.trade.market || 'DEFAULT',
+//         sector: formData.trade.sector || 'DEFAULT',
+//       } as EquityTradeData;
+//       break;
+
+//     case AssetClass.COMMODITY:
+//       specificTradeData = {
+//         ...baseTradeData,
+//         commodityType: formData.trade.commodityType,
+//         subType: formData.trade.subType || 'DEFAULT',
+//       } as CommodityTradeData;
+//       break;
+
+//     default:
+//       specificTradeData = baseTradeData as SpecificTradeData;
+//   }
+
+//   return specificTradeData;
+// }

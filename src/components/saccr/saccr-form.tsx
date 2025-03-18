@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { formSchema } from '@/lib/saccr/schema';
+import formSchema from '@/lib/saccr/schema';
 import {
   AssetClass,
   MarginType,
@@ -17,7 +17,6 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
@@ -30,15 +29,17 @@ import CollateralForm from './collateral-form';
 import ResultDisplay from './result-display';
 import CSVUploadForm from './csv-upload-form';
 
-type FormData = z.infer<typeof formSchema>;
+// Use the inferred type from the Zod schema
+export type FormDataType = z.infer<typeof formSchema>;
 
 export default function SACCRForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('manual');
   const [result, setResult] = useState<SACCRResult | null>(null);
 
-  const form = useForm<FormData>({
-    resolver: zodResolver(formSchema),
+  // Use a type parameter to fix the resolver type compatibility issue
+  const form = useForm<FormDataType>({
+    resolver: zodResolver<FormDataType>(formSchema),
     defaultValues: {
       nettingSet: {
         nettingAgreementId: '',
@@ -66,11 +67,13 @@ export default function SACCRForm() {
         indexName: '',
         basis: '',
       },
-      collateral: {
-        collateralAmount: 0,
-        collateralCurrency: 'USD',
-        haircut: 0,
-      },
+      collateral: [
+        {
+          collateralAmount: 0,
+          collateralCurrency: 'USD',
+          haircut: 0,
+        },
+      ],
     },
   });
 
@@ -95,10 +98,16 @@ export default function SACCRForm() {
 
     // Keep only common fields and reset the rest
     const currentValues = form.getValues('trade');
-    const newValues: Record<string, any> = {};
+    const newValues: Record<
+      string,
+      string | number | AssetClass | TransactionType | PositionType
+    > = {};
 
     commonFields.forEach((field) => {
-      newValues[field] = currentValues[field as keyof typeof currentValues];
+      const value = currentValues[field as keyof typeof currentValues];
+      if (value !== undefined) {
+        newValues[field] = value;
+      }
     });
 
     // Add default values for asset-class specific fields based on the selected asset class
@@ -137,14 +146,14 @@ export default function SACCRForm() {
     });
   };
 
-  const onSubmit = async (data: FormData) => {
+  // Define the onSubmit handler with the correct type
+  const onSubmit = async (data: FormDataType) => {
     setIsLoading(true);
     setResult(null);
-
+    
     try {
-      // Convert number values to strings for API compatibility
-      const processedData = {
-        ...data,
+      // Convert form data to the format expected by the API
+      const formattedData = {
         nettingSet: {
           ...data.nettingSet,
           thresholdAmount: data.nettingSet.thresholdAmount.toString(),
@@ -157,17 +166,17 @@ export default function SACCRForm() {
           ...data.trade,
           notionalAmount: data.trade.notionalAmount.toString(),
           currentMarketValue: data.trade.currentMarketValue.toString(),
-          // Only include asset-class specific fields if they exist
+          // Include asset-class specific fields if they exist
           ...(data.trade.assetClass === AssetClass.INTEREST_RATE && {
             paymentFrequency: (data.trade as any).paymentFrequency?.toString() || "3",
             resetFrequency: (data.trade as any).resetFrequency?.toString() || "3",
           }),
         },
-        collateral: data.collateral ? {
-          ...data.collateral,
-          collateralAmount: data.collateral.collateralAmount.toString(),
-          haircut: data.collateral.haircut.toString(),
-        } : undefined,
+        collateral: data.collateral.map(item => ({
+          ...item,
+          collateralAmount: item.collateralAmount.toString(),
+          haircut: item.haircut.toString(),
+        })),
       };
 
       const response = await fetch('/api/calculate/saccr', {
@@ -175,15 +184,15 @@ export default function SACCRForm() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(processedData),
+        body: JSON.stringify(formattedData),
       });
 
-      const responseData = await response.json();
-
       if (!response.ok) {
-        throw new Error(responseData.error || 'Failed to calculate SACCR');
+        throw new Error('Failed to calculate SACCR');
       }
 
+      const responseData = await response.json();
+      
       if (responseData.success && responseData.result) {
         setResult(responseData.result);
         toast.success('SACCR calculation completed successfully');
@@ -191,10 +200,8 @@ export default function SACCRForm() {
         throw new Error('Invalid response format');
       }
     } catch (error) {
-      console.error('SACCR calculation error:', error);
-      toast.error(
-        error instanceof Error ? error.message : 'An unexpected error occurred'
-      );
+      console.error('Error calculating SACCR:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to calculate SACCR');
     } finally {
       setIsLoading(false);
     }

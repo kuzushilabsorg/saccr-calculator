@@ -2,6 +2,7 @@
 
 import { UseFormReturn } from 'react-hook-form';
 import { AssetClass, TransactionType, PositionType } from '@/lib/saccr/types';
+import { FormDataType } from './saccr-form';
 import {
   FormField,
   FormItem,
@@ -20,7 +21,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface TradeFormProps {
-  form: UseFormReturn<any>;
+  form: UseFormReturn<FormDataType>;
   assetClass: AssetClass;
   onAssetClassChange: (value: AssetClass) => void;
   className?: string;
@@ -62,7 +63,7 @@ export default function TradeForm({
                 onValueChange={(value) =>
                   onAssetClassChange(value as AssetClass)
                 }
-                defaultValue={field.value}
+                defaultValue={field.value?.toString()}
               >
                 <FormControl>
                   <SelectTrigger>
@@ -94,7 +95,7 @@ export default function TradeForm({
           render={({ field }) => (
             <FormItem>
               <FormLabel>Transaction Type</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
+              <Select onValueChange={field.onChange} defaultValue={field.value?.toString()}>
                 <FormControl>
                   <SelectTrigger>
                     <SelectValue placeholder="Select transaction type" />
@@ -120,7 +121,7 @@ export default function TradeForm({
           render={({ field }) => (
             <FormItem>
               <FormLabel>Position Type</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
+              <Select onValueChange={field.onChange} defaultValue={field.value?.toString()}>
                 <FormControl>
                   <SelectTrigger>
                     <SelectValue placeholder="Select position type" />
@@ -383,7 +384,7 @@ export default function TradeForm({
                   <FormLabel>Credit Quality</FormLabel>
                   <Select
                     onValueChange={field.onChange}
-                    defaultValue={field.value}
+                    defaultValue={field.value?.toString()}
                   >
                     <FormControl>
                       <SelectTrigger>
@@ -462,7 +463,7 @@ export default function TradeForm({
                   <FormLabel>Commodity Type</FormLabel>
                   <Select
                     onValueChange={field.onChange}
-                    defaultValue={field.value}
+                    defaultValue={field.value?.toString()}
                   >
                     <FormControl>
                       <SelectTrigger>

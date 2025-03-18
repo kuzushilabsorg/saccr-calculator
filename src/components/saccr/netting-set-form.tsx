@@ -18,9 +18,11 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { FormDataType } from './saccr-form';
 
 interface NettingSetFormProps {
-  form: UseFormReturn<any>;
+  // Use the same FormDataType from the main form
+  form: UseFormReturn<FormDataType>;
   className?: string;
 }
 

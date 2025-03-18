@@ -15,11 +15,11 @@ const numberSchema = z.union([
 export const nettingSetSchema = z.object({
   nettingAgreementId: z.string().min(1, 'Netting agreement ID is required'),
   marginType: z.nativeEnum(MarginType),
-  thresholdAmount: numberSchema.optional().default(0),
-  minimumTransferAmount: numberSchema.optional().default(0),
-  independentCollateralAmount: numberSchema.optional().default(0),
-  variationMargin: numberSchema.optional().default(0),
-  marginPeriodOfRisk: numberSchema.optional().default(10),
+  thresholdAmount: numberSchema.default(0),
+  minimumTransferAmount: numberSchema.default(0),
+  independentCollateralAmount: numberSchema.default(0),
+  variationMargin: numberSchema.default(0),
+  marginPeriodOfRisk: numberSchema.default(10),
 });
 
 // Base Trade Schema
@@ -119,17 +119,17 @@ export const csvUploadSchema = z.array(
 );
 
 // Form Schema
-export const formSchema = z.object({
+const formSchema = z.object({
   nettingSet: nettingSetSchema,
-  trade: tradeSchema,
-  collateral: collateralSchema.optional(),
+  trade: z.discriminatedUnion('assetClass', [
+    interestRateTradeSchema,
+    foreignExchangeTradeSchema,
+    creditTradeSchema,
+    equityTradeSchema,
+    commodityTradeSchema,
+  ]),
+  collateral: z.array(collateralSchema),
 });
 
 // Export all schemas
-export default {
-  nettingSetSchema,
-  tradeSchema,
-  collateralSchema,
-  formSchema,
-  csvUploadSchema,
-};
+export default formSchema;
