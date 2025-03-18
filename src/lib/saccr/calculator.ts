@@ -11,7 +11,14 @@ import {
   SACCRResult,
   ReplacementCostResult,
   PotentialFutureExposureResult,
+  AddOnResult,
   SpecificTradeData,
+  InterestRateTradeData,
+  ForeignExchangeTradeData,
+  CreditTradeData,
+  EquityTradeData,
+  CommodityTradeData,
+  TradeData,
 } from './types';
 
 // Supervisory factors by asset class as per CRE52
@@ -377,10 +384,7 @@ export function calculatePotentialFutureExposure(
   return {
     value: pfeValue,
     multiplier,
-    addOn: {
-      value: totalAddOn,
-      components: addOnComponents,
-    },
+    aggregateAddOn: totalAddOn,
   };
 }
 
@@ -422,6 +426,7 @@ export function calculateSACCR(input: SACCRInput): SACCRResult {
     potentialFutureExposure,
     timestamp: new Date().toISOString(),
     inputSummary: {
+      nettingSetId: input.nettingSet.nettingAgreementId,
       tradeCount: input.trades.length,
       assetClasses,
       marginType: input.nettingSet.marginType,
@@ -449,7 +454,7 @@ function validateInput(input: SACCRInput): void {
   }
 
   // Validate each trade
-  input.trades.forEach((trade, index) => {
+  input.trades.forEach((trade: TradeData, index) => {
     if (!trade.id) {
       throw new Error(`Trade at index ${index} is missing an ID`);
     }
