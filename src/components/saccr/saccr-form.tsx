@@ -168,8 +168,8 @@ export default function SACCRForm() {
           currentMarketValue: data.trade.currentMarketValue.toString(),
           // Include asset-class specific fields if they exist
           ...(data.trade.assetClass === AssetClass.INTEREST_RATE && {
-            paymentFrequency: (data.trade as any).paymentFrequency?.toString() || "3",
-            resetFrequency: (data.trade as any).resetFrequency?.toString() || "3",
+            paymentFrequency: (data.trade as { paymentFrequency?: number }).paymentFrequency?.toString() || "3",
+            resetFrequency: (data.trade as { resetFrequency?: number }).resetFrequency?.toString() || "3",
           }),
         },
         collateral: data.collateral.map(item => ({
