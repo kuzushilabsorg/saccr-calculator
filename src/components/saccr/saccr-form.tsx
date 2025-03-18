@@ -43,27 +43,33 @@ export default function SACCRForm() {
       nettingSet: {
         nettingAgreementId: '',
         marginType: MarginType.UNMARGINED,
-        thresholdAmount: '0',
-        minimumTransferAmount: '0',
-        independentCollateralAmount: '0',
-        variationMargin: '0',
-        marginPeriodOfRisk: '10',
+        thresholdAmount: 0,
+        minimumTransferAmount: 0,
+        independentCollateralAmount: 0,
+        variationMargin: 0,
+        marginPeriodOfRisk: 10,
       },
       trade: {
         id: '',
         assetClass: AssetClass.INTEREST_RATE,
         transactionType: TransactionType.LINEAR,
         positionType: PositionType.LONG,
-        notionalAmount: '',
+        notionalAmount: 0,
         currency: 'USD',
         maturityDate: '',
         startDate: new Date().toISOString().split('T')[0],
-        currentMarketValue: '0',
+        currentMarketValue: 0,
+        // Add default values for asset-class specific fields
+        referenceCurrency: 'USD',
+        paymentFrequency: 0,
+        resetFrequency: 0,
+        indexName: '',
+        basis: '',
       },
       collateral: {
-        collateralAmount: '0',
+        collateralAmount: 0,
         collateralCurrency: 'USD',
-        haircut: '0',
+        haircut: 0,
       },
     },
   });
@@ -89,15 +95,45 @@ export default function SACCRForm() {
 
     // Keep only common fields and reset the rest
     const currentValues = form.getValues('trade');
-    const newValues = {} as any;
+    const newValues: Record<string, any> = {};
 
     commonFields.forEach((field) => {
       newValues[field] = currentValues[field as keyof typeof currentValues];
     });
 
+    // Add default values for asset-class specific fields based on the selected asset class
+    switch (value) {
+      case AssetClass.INTEREST_RATE:
+        newValues.referenceCurrency = 'USD';
+        newValues.paymentFrequency = '3';
+        newValues.resetFrequency = '3';
+        newValues.indexName = '';
+        newValues.basis = '';
+        break;
+      case AssetClass.FOREIGN_EXCHANGE:
+        newValues.currencyPair = `${currentValues.currency}/USD`;
+        newValues.settlementDate = currentValues.maturityDate;
+        break;
+      case AssetClass.CREDIT:
+        newValues.referenceEntity = '';
+        newValues.seniority = 'SENIOR';
+        newValues.sector = 'CORPORATE';
+        newValues.creditQuality = '';
+        break;
+      case AssetClass.EQUITY:
+        newValues.issuer = '';
+        newValues.market = 'DEFAULT';
+        newValues.sector = 'DEFAULT';
+        break;
+      case AssetClass.COMMODITY:
+        newValues.commodityType = '';
+        newValues.subType = 'DEFAULT';
+        break;
+    }
+
     form.reset({
       ...form.getValues(),
-      trade: newValues as any,
+      trade: newValues,
     });
   };
 
@@ -107,38 +143,38 @@ export default function SACCRForm() {
 
     try {
       // Convert string values to numbers before sending to API
-      const processedData = {
-        ...data,
-        nettingSet: {
-          ...data.nettingSet,
-          thresholdAmount: parseFloat(data.nettingSet.thresholdAmount),
-          minimumTransferAmount: parseFloat(
-            data.nettingSet.minimumTransferAmount
-          ),
-          independentCollateralAmount: parseFloat(
-            data.nettingSet.independentCollateralAmount
-          ),
-          variationMargin: parseFloat(data.nettingSet.variationMargin),
-          marginPeriodOfRisk: parseFloat(data.nettingSet.marginPeriodOfRisk),
-        },
-        trade: {
-          ...data.trade,
-          notionalAmount: parseFloat(data.trade.notionalAmount),
-          currentMarketValue: parseFloat(data.trade.currentMarketValue),
-        },
-        collateral: {
-          ...data.collateral,
-          collateralAmount: parseFloat(data.collateral.collateralAmount),
-          haircut: parseFloat(data.collateral.haircut),
-        },
-      };
+      //   const processedData = {
+      //     ...data,
+      //     nettingSet: {
+      //       ...data.nettingSet,
+      //       thresholdAmount: parseFloat(data.nettingSet.thresholdAmount),
+      //       minimumTransferAmount: parseFloat(
+      //         data.nettingSet.minimumTransferAmount
+      //       ),
+      //       independentCollateralAmount: parseFloat(
+      //         data.nettingSet.independentCollateralAmount
+      //       ),
+      //       variationMargin: parseFloat(data.nettingSet.variationMargin),
+      //       marginPeriodOfRisk: parseFloat(data.nettingSet.marginPeriodOfRisk),
+      //     },
+      //     trade: {
+      //       ...data.trade,
+      //       notionalAmount: parseFloat(data.trade.notionalAmount),
+      //       currentMarketValue: parseFloat(data.trade.currentMarketValue),
+      //     },
+      //     collateral: {
+      //       ...data.collateral,
+      //       collateralAmount: parseFloat(data.collateral.collateralAmount),
+      //       haircut: parseFloat(data.collateral.haircut),
+      //     },
+      //   };
 
       const response = await fetch('/api/calculate/saccr', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(processedData),
+        body: JSON.stringify(data),
       });
 
       const responseData = await response.json();
