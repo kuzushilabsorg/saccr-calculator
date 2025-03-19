@@ -3,7 +3,13 @@
  */
 
 import { z } from 'zod';
-import { AssetClass, MarginType, PositionType, TransactionType } from './types';
+import { 
+  AssetClass, 
+  MarginType, 
+  PositionType, 
+  TransactionType,
+  OptionType
+} from './types';
 
 // Helper function to handle both string and number inputs
 const numberSchema = z.union([
@@ -50,6 +56,12 @@ const baseTradeSchema = z.object({
     z.string().transform((val) => (val ? parseFloat(val) : 0)),
     z.number().default(0)
   ]).refine((val) => !isNaN(val), 'Current market value must be a number'),
+  // Option-specific fields (conditional based on transactionType)
+  optionType: z.nativeEnum(OptionType).optional(),
+  strikePrice: numberSchema.optional(),
+  underlyingPrice: numberSchema.optional(),
+  volatility: numberSchema.optional().default(0.2), // Default volatility of 20%
+  timeToMaturity: numberSchema.optional(), // Calculated from maturityDate
 });
 
 // Interest Rate Trade Schema
@@ -80,6 +92,7 @@ export const creditTradeSchema = baseTradeSchema.extend({
   seniority: z.string().optional().default('SENIOR'),
   sector: z.string().optional().default('CORPORATE'),
   creditQuality: z.string().optional(),
+  isIndex: z.boolean().optional().default(false),
 });
 
 // Equity Trade Schema
@@ -88,6 +101,7 @@ export const equityTradeSchema = baseTradeSchema.extend({
   issuer: z.string().min(1, 'Issuer is required'),
   market: z.string().optional().default('DEFAULT'),
   sector: z.string().optional().default('DEFAULT'),
+  isIndex: z.boolean().optional().default(false),
 });
 
 // Commodity Trade Schema
@@ -95,6 +109,7 @@ export const commodityTradeSchema = baseTradeSchema.extend({
   assetClass: z.literal(AssetClass.COMMODITY),
   commodityType: z.string().min(1, 'Commodity type is required'),
   subType: z.string().optional().default('DEFAULT'),
+  isElectricity: z.boolean().optional().default(false),
 });
 
 // Discriminated union of all trade schemas
@@ -104,7 +119,21 @@ export const tradeSchema = z.discriminatedUnion('assetClass', [
   creditTradeSchema,
   equityTradeSchema,
   commodityTradeSchema,
-]);
+]).refine(
+  (data) => {
+    // If it's an option, require option-specific fields
+    if (data.transactionType === TransactionType.OPTION) {
+      return !!data.optionType && 
+             data.strikePrice !== undefined && 
+             data.underlyingPrice !== undefined;
+    }
+    return true;
+  },
+  {
+    message: "Option type, strike price, and underlying price are required for option trades",
+    path: ["transactionType"],
+  }
+);
 
 // Collateral Schema
 export const collateralSchema = z.object({
@@ -121,13 +150,7 @@ export const csvUploadSchema = z.array(
 // Form Schema
 const formSchema = z.object({
   nettingSet: nettingSetSchema,
-  trade: z.discriminatedUnion('assetClass', [
-    interestRateTradeSchema,
-    foreignExchangeTradeSchema,
-    creditTradeSchema,
-    equityTradeSchema,
-    commodityTradeSchema,
-  ]),
+  trade: tradeSchema,
   collateral: z.array(collateralSchema),
 });
 

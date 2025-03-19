@@ -5,7 +5,7 @@ import {
   parseCSVToSACCRInput,
 } from '@/lib/saccr/calculator';
 import formSchema, { csvUploadSchema } from '@/lib/saccr/schema';
-import { SACCRInput, SACCRResult } from '@/lib/saccr/types';
+import { SACCRInput, SACCRResult, SACCRFormInput } from '@/lib/saccr/types';
 import { ZodError } from 'zod';
 
 /**
@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
 
       try {
         // Validate form data
-        const validatedData = formSchema.parse(body);
+        const validatedData = formSchema.parse(body) as SACCRFormInput;
         saccrInput = convertFormToSACCRInput(validatedData);
       } catch (error) {
         if (error instanceof ZodError) {

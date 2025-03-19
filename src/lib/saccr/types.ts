@@ -19,6 +19,12 @@ export enum TransactionType {
   VOLATILITY = 'VOLATILITY',
 }
 
+// Option Types
+export enum OptionType {
+  CALL = 'CALL',
+  PUT = 'PUT',
+}
+
 // Position Types
 export enum PositionType {
   LONG = 'LONG',
@@ -42,6 +48,12 @@ export interface TradeData {
   maturityDate: string; // ISO date string
   startDate: string; // ISO date string
   currentMarketValue: number;
+  // Option-specific fields
+  optionType?: OptionType;
+  strikePrice?: number;
+  underlyingPrice?: number;
+  volatility?: number;
+  timeToMaturity?: number; // in years
 }
 
 // Interest Rate Specific Data
@@ -67,7 +79,8 @@ export interface CreditTradeData extends TradeData {
   referenceEntity: string;
   seniority: string;
   sector: string;
-  creditQuality?: string;
+  creditQuality?: string; // e.g., "INVESTMENT_GRADE", "SPECULATIVE_GRADE"
+  isIndex?: boolean; // Whether the credit instrument is an index
 }
 
 // Equity Specific Data
@@ -76,6 +89,7 @@ export interface EquityTradeData extends TradeData {
   issuer: string;
   market: string;
   sector: string;
+  isIndex?: boolean; // Whether the equity instrument is an index
 }
 
 // Commodity Specific Data
@@ -83,6 +97,7 @@ export interface CommodityTradeData extends TradeData {
   assetClass: AssetClass.COMMODITY;
   commodityType: string; // e.g., "ENERGY", "METALS", "AGRICULTURAL"
   subType: string; // e.g., "OIL", "GOLD", "WHEAT"
+  isElectricity?: boolean; // Special flag for electricity which has different supervisory factors
 }
 
 // Union type for all trade data
@@ -193,7 +208,16 @@ export interface SACCRFormInput {
     currency: string;
     maturityDate: string;
     currentMarketValue: string | number;
-    [key: string]: string | number | AssetClass | TransactionType | PositionType | undefined;
+    // Option-specific fields
+    optionType?: OptionType;
+    strikePrice?: string | number;
+    underlyingPrice?: string | number;
+    volatility?: string | number;
+    timeToMaturity?: number;
+    // Boolean fields for different asset classes
+    isIndex?: boolean;
+    isElectricity?: boolean;
+    [key: string]: string | number | boolean | AssetClass | TransactionType | PositionType | OptionType | undefined;
   };
   collateral: {
     collateralAmount: string | number;

@@ -1,7 +1,7 @@
 'use client';
 
 import { UseFormReturn } from 'react-hook-form';
-import { AssetClass, TransactionType, PositionType } from '@/lib/saccr/types';
+import { AssetClass, TransactionType, PositionType, OptionType } from '@/lib/saccr/types';
 import { FormDataType } from './saccr-form';
 import {
   FormField,
@@ -9,6 +9,7 @@ import {
   FormLabel,
   FormControl,
   FormMessage,
+  FormDescription,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import {
@@ -19,6 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 
 interface TradeFormProps {
   form: UseFormReturn<FormDataType>;
@@ -33,6 +35,10 @@ export default function TradeForm({
   onAssetClassChange,
   className = '',
 }: TradeFormProps) {
+  // Get the current transaction type to conditionally render option fields
+  const transactionType = form.watch('trade.transactionType');
+  const isOption = transactionType === TransactionType.OPTION;
+
   return (
     <Card className={className}>
       <CardHeader>
@@ -136,6 +142,97 @@ export default function TradeForm({
             </FormItem>
           )}
         />
+
+        {/* Option-specific fields - only shown when transaction type is OPTION */}
+        {isOption && (
+          <>
+            <FormField
+              control={form.control}
+              name="trade.optionType"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Option Type</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value?.toString()}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select option type" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value={OptionType.CALL}>Call</SelectItem>
+                      <SelectItem value={OptionType.PUT}>Put</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="trade.strikePrice"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Strike Price</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="Enter strike price"
+                      {...field}
+                      onChange={(e) => field.onChange(e.target.valueAsNumber)}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="trade.underlyingPrice"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Underlying Price</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="Enter underlying price"
+                      {...field}
+                      onChange={(e) => field.onChange(e.target.valueAsNumber)}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="trade.volatility"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Volatility (as decimal, e.g., 0.2 for 20%)</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      min="0.01"
+                      max="1"
+                      step="0.01"
+                      placeholder="Enter volatility (default: 0.2)"
+                      {...field}
+                      onChange={(e) => field.onChange(e.target.valueAsNumber)}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </>
+        )}
 
         <FormField
           control={form.control}
@@ -401,6 +498,29 @@ export default function TradeForm({
                     </SelectContent>
                   </Select>
                   <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="trade.isIndex"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                  <div className="space-y-1 leading-none">
+                    <FormLabel>
+                      Is Index
+                    </FormLabel>
+                    <FormDescription>
+                      Check if this is an index credit instrument
+                    </FormDescription>
+                  </div>
                 </FormItem>
               )}
             />

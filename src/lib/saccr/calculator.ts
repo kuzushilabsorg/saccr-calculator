@@ -18,6 +18,8 @@ import {
   EquityTradeData,
   CommodityTradeData,
   TradeData,
+  OptionType,
+  SACCRFormInput,
 } from './types';
 
 // Supervisory factors by asset class as per CRE52
@@ -85,6 +87,52 @@ const SUPERVISORY_FACTORS = {
 //   [AssetClass.EQUITY]: 0.8,
 //   [AssetClass.COMMODITY]: 0.7,
 // };
+
+/**
+ * Standard normal cumulative distribution function
+ * @param x Input value
+ * @returns Probability
+ */
+function normalCDF(x: number): number {
+  // Approximation of the cumulative distribution function of the standard normal distribution
+  const t = 1 / (1 + 0.2316419 * Math.abs(x));
+  const d = 0.3989423 * Math.exp(-x * x / 2);
+  const probability = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));
+  return x > 0 ? 1 - probability : probability;
+}
+
+/**
+ * Calculate d1 parameter for Black-Scholes formula
+ * @param S Current price of the underlying asset
+ * @param K Strike price
+ * @param r Risk-free interest rate
+ * @param sigma Volatility
+ * @param T Time to maturity in years
+ * @returns d1 parameter
+ */
+function calculateD1(S: number, K: number, r: number, sigma: number, T: number): number {
+  return (Math.log(S / K) + (r + sigma * sigma / 2) * T) / (sigma * Math.sqrt(T));
+}
+
+/**
+ * Calculate option delta using Black-Scholes model
+ * @param S Current price of the underlying asset
+ * @param K Strike price
+ * @param r Risk-free interest rate
+ * @param sigma Volatility
+ * @param T Time to maturity in years
+ * @param isCall Whether the option is a call option
+ * @returns Option delta
+ */
+function calculateOptionDelta(S: number, K: number, r: number, sigma: number, T: number, isCall: boolean): number {
+  const d1 = calculateD1(S, K, r, sigma, T);
+  
+  if (isCall) {
+    return normalCDF(d1);
+  } else {
+    return normalCDF(d1) - 1;
+  }
+}
 
 /**
  * Calculate the Replacement Cost (RC) component of SACCR
@@ -177,7 +225,7 @@ function calculateMaturityFactor(
 }
 
 /**
- * Calculate the supervisory delta adjustment
+ * Calculate the supervisory delta adjustment according to CRE52 framework
  * @param trade Trade data
  * @returns Supervisory delta adjustment
  */
@@ -187,15 +235,48 @@ function calculateSupervisoryDelta(trade: SpecificTradeData): number {
     return trade.positionType === PositionType.LONG ? 1 : -1;
   }
 
-  // For options, we would implement the Black-Scholes based formula
-  // This is a simplified implementation
+  // For options, implement the Black-Scholes based formula as per CRE52
   if (trade.transactionType === TransactionType.OPTION) {
+    // Check if we have all required option parameters
+    if (trade.optionType === undefined || trade.strikePrice === undefined || trade.underlyingPrice === undefined) {
+      throw new Error('Missing required option parameters: optionType, strikePrice, or underlyingPrice');
+    }
+
+    // Default values if not provided
+    const volatility = trade.volatility || 0.2; // Default 20% volatility
+    
+    // Calculate time to maturity in years
+    const maturityDate = new Date(trade.maturityDate);
+    const currentDate = new Date();
+    const timeToMaturity = trade.timeToMaturity || 
+      Math.max(0.01, (maturityDate.getTime() - currentDate.getTime()) / (365 * 24 * 60 * 60 * 1000));
+    
+    // Risk-free rate (simplified, could be based on currency)
+    const riskFreeRate = 0.02; // 2% risk-free rate
+    
+    // Calculate option delta using Black-Scholes
+    const isCall = trade.optionType === OptionType.CALL;
+    const optionDelta = calculateOptionDelta(
+      trade.underlyingPrice,
+      trade.strikePrice,
+      riskFreeRate,
+      volatility,
+      timeToMaturity,
+      isCall
+    );
+    
+    // Apply position type (long/short)
     const sign = trade.positionType === PositionType.LONG ? 1 : -1;
-    // Simplified delta calculation - in a real implementation, this would use Black-Scholes
-    return sign * 0.5; // Placeholder value
+    return sign * Math.abs(optionDelta);
   }
 
   // For basis and volatility transactions
+  if (trade.transactionType === TransactionType.BASIS || 
+      trade.transactionType === TransactionType.VOLATILITY) {
+    return 1;
+  }
+
+  // Default fallback
   return 1;
 }
 
@@ -622,38 +703,7 @@ export function parseCSVToSACCRInput(
  * @param formData Form input data
  * @returns SACCR input data
  */
-export function convertFormToSACCRInput(formData: {
-  nettingSet: {
-    nettingAgreementId: string;
-    marginType: MarginType;
-    thresholdAmount?: string | number;
-    minimumTransferAmount?: string | number;
-    independentCollateralAmount?: string | number;
-    variationMargin?: string | number;
-    marginPeriodOfRisk?: string | number;
-  };
-  trade: {
-    assetClass: AssetClass;
-    transactionType: TransactionType;
-    positionType: PositionType;
-    notionalAmount: string | number;
-    currency: string;
-    maturityDate: string;
-    currentMarketValue: string | number;
-    [key: string]:
-      | string
-      | number
-      | AssetClass
-      | TransactionType
-      | PositionType
-      | undefined;
-  };
-  collateral?: Array<{
-    collateralAmount: string | number;
-    collateralCurrency: string;
-    haircut: string | number;
-  }>;
-}): SACCRInput {
+export function convertFormToSACCRInput(formData: SACCRFormInput): SACCRInput {
   // Extract netting set information
   const nettingSet: SACCRInput['nettingSet'] = {
     nettingAgreementId: formData.nettingSet.nettingAgreementId,
@@ -679,20 +729,37 @@ export function convertFormToSACCRInput(formData: {
   }
 
   // Extract trade information
-  const baseTradeData = {
-    id: formData.trade.id,
+  const baseTradeData: Partial<TradeData> = {
+    id: formData.trade.id as string,
     assetClass: formData.trade.assetClass as AssetClass,
     transactionType: formData.trade.transactionType as TransactionType,
     positionType: formData.trade.positionType as PositionType,
     notionalAmount: parseFloat(String(formData.trade.notionalAmount)),
-    currency: formData.trade.currency,
-    maturityDate: formData.trade.maturityDate,
+    currency: formData.trade.currency as string,
+    maturityDate: formData.trade.maturityDate as string,
     startDate:
-      formData.trade.startDate || new Date().toISOString().split('T')[0],
+      (formData.trade.startDate as string) || new Date().toISOString().split('T')[0],
     currentMarketValue: parseFloat(
       String(formData.trade.currentMarketValue || '0')
     ),
   };
+
+  // Handle option-specific fields if transaction type is OPTION
+  if (baseTradeData.transactionType === TransactionType.OPTION) {
+    const optionTradeData = baseTradeData as Partial<TradeData & {
+      optionType: OptionType;
+      strikePrice: number;
+      underlyingPrice: number;
+      volatility: number;
+      timeToMaturity: number;
+    }>;
+    
+    optionTradeData.optionType = formData.trade.optionType as OptionType;
+    optionTradeData.strikePrice = parseFloat(String(formData.trade.strikePrice || '0'));
+    optionTradeData.underlyingPrice = parseFloat(String(formData.trade.underlyingPrice || '0'));
+    optionTradeData.volatility = parseFloat(String(formData.trade.volatility || '0.2'));
+    optionTradeData.timeToMaturity = calculateTimeToMaturity(baseTradeData.maturityDate as string);
+  }
 
   // Create specific trade data based on asset class
   let specificTradeData: SpecificTradeData;
@@ -731,6 +798,7 @@ export function convertFormToSACCRInput(formData: {
         seniority: formData.trade.seniority || 'SENIOR',
         sector: formData.trade.sector || 'CORPORATE',
         creditQuality: formData.trade.creditQuality,
+        isIndex: Boolean(formData.trade.isIndex),
       } as CreditTradeData;
       break;
 
@@ -740,6 +808,7 @@ export function convertFormToSACCRInput(formData: {
         issuer: formData.trade.issuer,
         market: formData.trade.market || 'DEFAULT',
         sector: formData.trade.sector || 'DEFAULT',
+        isIndex: Boolean(formData.trade.isIndex),
       } as EquityTradeData;
       break;
 
@@ -748,6 +817,7 @@ export function convertFormToSACCRInput(formData: {
         ...baseTradeData,
         commodityType: formData.trade.commodityType,
         subType: formData.trade.subType || 'DEFAULT',
+        isElectricity: Boolean(formData.trade.isElectricity),
       } as CommodityTradeData;
       break;
 
@@ -776,88 +846,8 @@ export function convertFormToSACCRInput(formData: {
   };
 }
 
-/**
- * Helper function to create a trade object from form data
- */
-// function createTradeFromForm(
-//   formData: {
-//     trade: {
-//       assetClass: AssetClass;
-//       transactionType: TransactionType;
-//       positionType: PositionType;
-//       notionalAmount: string | number;
-//       currency: string;
-//       maturityDate: string;
-//       currentMarketValue: string | number;
-//       [key: string]: string | number | AssetClass | TransactionType | PositionType | undefined;
-//     };
-//   }
-// ): TradeData {
-//   const baseTradeData = {
-//     id: formData.trade.id,
-//     assetClass: formData.trade.assetClass as AssetClass,
-//     transactionType: formData.trade.transactionType as TransactionType,
-//     positionType: formData.trade.positionType as PositionType,
-//     notionalAmount: parseFloat(String(formData.trade.notionalAmount)),
-//     currency: formData.trade.currency,
-//     maturityDate: formData.trade.maturityDate,
-//     startDate: formData.trade.startDate || new Date().toISOString().split('T')[0],
-//     currentMarketValue: parseFloat(String(formData.trade.currentMarketValue || '0')),
-//   };
-
-//   // Create specific trade data based on asset class
-//   let specificTradeData: SpecificTradeData;
-
-//   switch (baseTradeData.assetClass) {
-//     case AssetClass.INTEREST_RATE:
-//       specificTradeData = {
-//         ...baseTradeData,
-//         referenceCurrency: formData.trade.referenceCurrency || baseTradeData.currency,
-//         paymentFrequency: parseFloat(String(formData.trade.paymentFrequency || '3')),
-//         resetFrequency: parseFloat(String(formData.trade.resetFrequency || '3')),
-//         indexName: formData.trade.indexName,
-//         basis: formData.trade.basis,
-//       } as InterestRateTradeData;
-//       break;
-
-//     case AssetClass.FOREIGN_EXCHANGE:
-//       specificTradeData = {
-//         ...baseTradeData,
-//         currencyPair: formData.trade.currencyPair || `${baseTradeData.currency}/USD`,
-//         settlementDate: formData.trade.settlementDate || baseTradeData.maturityDate,
-//       } as ForeignExchangeTradeData;
-//       break;
-
-//     case AssetClass.CREDIT:
-//       specificTradeData = {
-//         ...baseTradeData,
-//         referenceEntity: formData.trade.referenceEntity,
-//         seniority: formData.trade.seniority || 'SENIOR',
-//         sector: formData.trade.sector || 'CORPORATE',
-//         creditQuality: formData.trade.creditQuality,
-//       } as CreditTradeData;
-//       break;
-
-//     case AssetClass.EQUITY:
-//       specificTradeData = {
-//         ...baseTradeData,
-//         issuer: formData.trade.issuer,
-//         market: formData.trade.market || 'DEFAULT',
-//         sector: formData.trade.sector || 'DEFAULT',
-//       } as EquityTradeData;
-//       break;
-
-//     case AssetClass.COMMODITY:
-//       specificTradeData = {
-//         ...baseTradeData,
-//         commodityType: formData.trade.commodityType,
-//         subType: formData.trade.subType || 'DEFAULT',
-//       } as CommodityTradeData;
-//       break;
-
-//     default:
-//       specificTradeData = baseTradeData as SpecificTradeData;
-//   }
-
-//   return specificTradeData;
-// }
+function calculateTimeToMaturity(maturityDate: string): number {
+  const maturityDateObject = new Date(maturityDate);
+  const currentDate = new Date();
+  return Math.max(0.01, (maturityDateObject.getTime() - currentDate.getTime()) / (365 * 24 * 60 * 60 * 1000));
+}
