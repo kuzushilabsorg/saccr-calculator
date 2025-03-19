@@ -6,7 +6,7 @@ import {
   PFEConfidenceLevel,
   PFECalculationMethod,
 } from './types';
-import { AssetClass, MarginType } from '../saccr/types';
+import { AssetClass, MarginType, TransactionType, PositionType } from '../saccr/types';
 
 /**
  * Calculator for Potential Future Exposure (PFE) based on the SA-CCR framework
@@ -139,7 +139,29 @@ export class PFECalculator {
       totalPFE += assetClassPFE;
       
       // Calculate expected exposure (typically lower than PFE)
-      const assetClassEE = assetClassPFE * 0.7; // Simplified approach
+      // Different asset classes have different EE/PFE ratios
+      let eeFactor = 0.7; // Default
+      
+      // Adjust EE factor based on asset class
+      switch (assetClass) {
+        case AssetClass.INTEREST_RATE:
+          eeFactor = 0.65; // Interest rates tend to be more stable
+          break;
+        case AssetClass.FOREIGN_EXCHANGE:
+          eeFactor = 0.7;
+          break;
+        case AssetClass.CREDIT:
+          eeFactor = 0.75; // Credit can have jump-to-default risk
+          break;
+        case AssetClass.EQUITY:
+          eeFactor = 0.8; // Equities can be more volatile
+          break;
+        case AssetClass.COMMODITY:
+          eeFactor = 0.75; // Commodities can have seasonal patterns
+          break;
+      }
+      
+      const assetClassEE = assetClassPFE * eeFactor;
       totalEE += assetClassEE;
       
       // Track maximum PFE for peak exposure
@@ -158,6 +180,7 @@ export class PFECalculator {
     }
     
     // Calculate stressed PFE (typically 2-3x normal PFE)
+    // Different asset classes may have different stress factors
     const stressedPFE = totalPFE * 2.5;
     
     return {
@@ -166,6 +189,83 @@ export class PFECalculator {
       peakExposure: maxPFE,
       stressedPFE,
     };
+  }
+  
+  /**
+   * Calculate add-on for a set of trades
+   * 
+   * @param trades The trades to calculate add-on for
+   * @returns The add-on amount
+   */
+  private static calculateAddOn(
+    trades: PFETradeData[]
+  ): number {
+    // Implementation of add-on calculation based on SA-CCR
+    
+    // Calculate adjusted notional
+    const adjustedNotional = trades.reduce((sum, trade) => {
+      // Apply adjustments based on transaction type
+      let adjustment = 1.0;
+      
+      // Apply delta adjustment for options
+      if (trade.transactionType === TransactionType.OPTION) {
+        // Calculate delta based on position type
+        if (trade.positionType === PositionType.LONG) {
+          adjustment = 0.8; // Simplified delta for long option
+        } else {
+          adjustment = -0.8; // Simplified delta for short option
+        }
+        
+        // If volatility is provided, use it for more accurate delta
+        if (trade.volatility) {
+          // Apply volatility adjustment
+          adjustment *= Math.sqrt(trade.volatility);
+        }
+      } else if (trade.transactionType === TransactionType.BASIS) {
+        // Basis swaps have reduced risk
+        adjustment = 0.5;
+      } else if (trade.transactionType === TransactionType.VOLATILITY) {
+        // Volatility trades have increased risk
+        adjustment = 1.5;
+      }
+      
+      // Apply maturity factor
+      const maturityDate = new Date(trade.maturityDate);
+      const today = new Date();
+      const maturityInYears = (maturityDate.getTime() - today.getTime()) / (365 * 24 * 60 * 60 * 1000);
+      const maturityFactor = Math.min(1, Math.max(0.05, maturityInYears / 5));
+      
+      return sum + (trade.notionalAmount * Math.abs(adjustment) * maturityFactor);
+    }, 0);
+    
+    // Apply supervisory factor based on asset class
+    const supervisoryFactor = this.getSupervisoryFactor(trades[0].assetClass);
+    
+    return adjustedNotional * supervisoryFactor;
+  }
+  
+  /**
+   * Get supervisory factor for an asset class
+   * 
+   * @param assetClass The asset class
+   * @returns The supervisory factor
+   */
+  private static getSupervisoryFactor(assetClass: AssetClass): number {
+    // Supervisory factors from SA-CCR
+    switch (assetClass) {
+      case AssetClass.INTEREST_RATE:
+        return 0.005; // 0.5%
+      case AssetClass.FOREIGN_EXCHANGE:
+        return 0.04;  // 4%
+      case AssetClass.CREDIT:
+        return 0.05;  // 5% - could be refined based on credit quality
+      case AssetClass.EQUITY:
+        return 0.32;  // 32%
+      case AssetClass.COMMODITY:
+        return 0.18;  // 18% - could be refined based on commodity type
+      default:
+        return 0.15;  // Default factor
+    }
   }
   
   /**
@@ -345,62 +445,6 @@ export class PFECalculator {
     }
     
     return profile;
-  }
-  
-  /**
-   * Calculate add-on for a set of trades
-   * 
-   * @param trades The trades to calculate add-on for
-   * @returns The add-on amount
-   */
-  private static calculateAddOn(
-    trades: PFETradeData[]
-  ): number {
-    // Implementation of add-on calculation based on SA-CCR
-    // This is a simplified version for demonstration
-    
-    // Calculate adjusted notional
-    const adjustedNotional = trades.reduce((sum, trade) => {
-      // Apply adjustments based on transaction type
-      const adjustment = 1.0;
-      
-      // Apply maturity factor
-      const maturityDate = new Date(trade.maturityDate);
-      const today = new Date();
-      const maturityInYears = (maturityDate.getTime() - today.getTime()) / (365 * 24 * 60 * 60 * 1000);
-      const maturityFactor = Math.min(1, Math.max(0.05, maturityInYears / 5));
-      
-      return sum + (trade.notionalAmount * adjustment * maturityFactor);
-    }, 0);
-    
-    // Apply supervisory factor based on asset class
-    const supervisoryFactor = this.getSupervisoryFactor(trades[0].assetClass);
-    
-    return adjustedNotional * supervisoryFactor;
-  }
-  
-  /**
-   * Get supervisory factor for an asset class
-   * 
-   * @param assetClass The asset class
-   * @returns The supervisory factor
-   */
-  private static getSupervisoryFactor(assetClass: AssetClass): number {
-    // Supervisory factors from SA-CCR
-    switch (assetClass) {
-      case AssetClass.INTEREST_RATE:
-        return 0.005;
-      case AssetClass.FOREIGN_EXCHANGE:
-        return 0.04;
-      case AssetClass.CREDIT:
-        return 0.05;
-      case AssetClass.EQUITY:
-        return 0.32;
-      case AssetClass.COMMODITY:
-        return 0.18;
-      default:
-        return 0.15; // Default factor
-    }
   }
   
   /**
