@@ -31,51 +31,43 @@ export const marketDataProviders = [
   },
   {
     id: DATA_PROVIDERS.FRED,
-    name: 'FRED',
-    description: 'Federal Reserve Economic Data',
+    name: 'Federal Reserve Economic Data (FRED)',
+    description: 'Economic and interest rate data provider',
     supportedAssetTypes: [VaRAssetType.INTEREST_RATE],
     requiresApiKey: true
   },
   {
     id: DATA_PROVIDERS.YAHOO_FINANCE,
     name: 'Yahoo Finance',
-    description: 'Comprehensive stock, forex, and market data',
-    supportedAssetTypes: [
-      VaRAssetType.EQUITY, 
-      VaRAssetType.FOREIGN_EXCHANGE, 
-      VaRAssetType.COMMODITY
-    ],
+    description: 'Stock, forex, and crypto data provider',
+    supportedAssetTypes: [VaRAssetType.EQUITY, VaRAssetType.FOREIGN_EXCHANGE, VaRAssetType.CRYPTO, VaRAssetType.COMMODITY],
     requiresApiKey: false
   },
   {
     id: DATA_PROVIDERS.MARKETSTACK,
     name: 'Marketstack',
-    description: 'Global stock market data',
+    description: 'Stock market data provider',
     supportedAssetTypes: [VaRAssetType.EQUITY],
     requiresApiKey: true
   },
   {
     id: DATA_PROVIDERS.FINNHUB,
     name: 'Finnhub',
-    description: 'Stocks, forex, and crypto data',
-    supportedAssetTypes: [
-      VaRAssetType.EQUITY, 
-      VaRAssetType.FOREIGN_EXCHANGE, 
-      VaRAssetType.CRYPTO
-    ],
+    description: 'Stock, forex, and crypto data provider',
+    supportedAssetTypes: [VaRAssetType.EQUITY, VaRAssetType.FOREIGN_EXCHANGE, VaRAssetType.CRYPTO],
     requiresApiKey: true
   },
   {
     id: DATA_PROVIDERS.OPEN_EXCHANGE_RATES,
     name: 'Open Exchange Rates',
-    description: 'Currency exchange rates',
+    description: 'Foreign exchange data provider',
     supportedAssetTypes: [VaRAssetType.FOREIGN_EXCHANGE],
     requiresApiKey: true
   },
   {
     id: DATA_PROVIDERS.WORLD_BANK,
     name: 'World Bank',
-    description: 'Economic indicators and development data',
+    description: 'Economic and interest rate data provider',
     supportedAssetTypes: [VaRAssetType.INTEREST_RATE],
     requiresApiKey: false
   },
@@ -86,27 +78,35 @@ export const marketDataProviders = [
     supportedAssetTypes: [
       VaRAssetType.EQUITY, 
       VaRAssetType.FOREIGN_EXCHANGE, 
-      VaRAssetType.CRYPTO, 
       VaRAssetType.INTEREST_RATE, 
-      VaRAssetType.COMMODITY
+      VaRAssetType.COMMODITY, 
+      VaRAssetType.CRYPTO
     ],
     requiresApiKey: false
   }
 ];
 
-// Map asset types to supported data providers
-export const ASSET_TYPE_PROVIDERS: Record<VaRAssetType, string[]> = {
-  [VaRAssetType.EQUITY]: [DATA_PROVIDERS.ALPHA_VANTAGE, DATA_PROVIDERS.YAHOO_FINANCE, DATA_PROVIDERS.MARKETSTACK],
-  [VaRAssetType.FOREIGN_EXCHANGE]: [DATA_PROVIDERS.ALPHA_VANTAGE, DATA_PROVIDERS.YAHOO_FINANCE, DATA_PROVIDERS.OPEN_EXCHANGE_RATES],
-  [VaRAssetType.CRYPTO]: [DATA_PROVIDERS.COINGECKO, DATA_PROVIDERS.FINNHUB],
-  [VaRAssetType.INTEREST_RATE]: [DATA_PROVIDERS.FRED, DATA_PROVIDERS.WORLD_BANK],
-  [VaRAssetType.COMMODITY]: [DATA_PROVIDERS.YAHOO_FINANCE] // No free API available for commodities
+// Map of provider IDs to supported asset types for easier lookup
+export const PROVIDER_ASSET_TYPE_MAP: Record<string, VaRAssetType[]> = {
+  [DATA_PROVIDERS.ALPHA_VANTAGE]: [VaRAssetType.EQUITY, VaRAssetType.FOREIGN_EXCHANGE],
+  [DATA_PROVIDERS.COINGECKO]: [VaRAssetType.CRYPTO],
+  [DATA_PROVIDERS.FRED]: [VaRAssetType.INTEREST_RATE],
+  [DATA_PROVIDERS.YAHOO_FINANCE]: [VaRAssetType.EQUITY, VaRAssetType.FOREIGN_EXCHANGE, VaRAssetType.CRYPTO, VaRAssetType.COMMODITY],
+  [DATA_PROVIDERS.MARKETSTACK]: [VaRAssetType.EQUITY],
+  [DATA_PROVIDERS.FINNHUB]: [VaRAssetType.EQUITY, VaRAssetType.FOREIGN_EXCHANGE, VaRAssetType.CRYPTO],
+  [DATA_PROVIDERS.OPEN_EXCHANGE_RATES]: [VaRAssetType.FOREIGN_EXCHANGE],
+  [DATA_PROVIDERS.WORLD_BANK]: [VaRAssetType.INTEREST_RATE],
+  [DATA_PROVIDERS.SYNTHETIC]: [
+    VaRAssetType.EQUITY, 
+    VaRAssetType.FOREIGN_EXCHANGE, 
+    VaRAssetType.INTEREST_RATE, 
+    VaRAssetType.COMMODITY, 
+    VaRAssetType.CRYPTO
+  ]
 };
 
-/**
- * Standardized interface for API responses to simplify data mapping
- */
-interface StandardizedAPIResponse {
+// Interface for standardized API responses to simplify data mapping
+export class StandardizedAPIResponse {
   dates: string[];
   prices: number[];
   volumes?: number[];
@@ -115,8 +115,26 @@ interface StandardizedAPIResponse {
     startDate?: string;
     endDate?: string;
     dataPoints?: number;
-    [key: string]: any;
+    [key: string]: string | number | boolean | undefined;
   };
+
+  constructor(
+    dates: string[],
+    prices: number[],
+    volumes?: number[],
+    metadata?: {
+      source: string;
+      startDate?: string;
+      endDate?: string;
+      dataPoints?: number;
+      [key: string]: string | number | boolean | undefined;
+    }
+  ) {
+    this.dates = dates;
+    this.prices = prices;
+    this.volumes = volumes;
+    this.metadata = metadata;
+  }
 }
 
 /**
@@ -170,7 +188,7 @@ export async function fetchHistoricalMarketData(
 ): Promise<HistoricalMarketData> {
   try {
     // Validate that the provider supports the asset type
-    if (!ASSET_TYPE_PROVIDERS[assetType]?.includes(provider)) {
+    if (!PROVIDER_ASSET_TYPE_MAP[provider]?.includes(assetType)) {
       throw new Error(`Provider ${provider} does not support ${assetType}`);
     }
 
@@ -232,7 +250,7 @@ async function fetchAlphaVantageData(
   }
 
   let endpoint: string;
-  let symbol = assetIdentifier;
+  const symbol = assetIdentifier;
 
   // Build the appropriate endpoint based on asset type
   if (assetType === VaRAssetType.EQUITY) {
@@ -278,7 +296,7 @@ async function fetchAlphaVantageData(
     // Convert to our format
     const dates = Object.keys(timeSeries).sort();
     const marketData: MarketDataPoint[] = [];
-
+    
     // Limit to lookback period
     const limitedDates = dates.slice(0, lookbackPeriod);
 
@@ -391,6 +409,14 @@ async function fetchFREDData(
     throw new Error('FRED API key not found in environment variables');
   }
 
+  // Define FRED observation interface
+  interface FREDObservation {
+    date: string;
+    value: string | number;
+    realtime_start?: string;
+    realtime_end?: string;
+  }
+
   try {
     // Calculate start date based on lookback period (add extra days for weekends/holidays)
     const endDate = new Date();
@@ -424,14 +450,14 @@ async function fetchFREDData(
     const marketData: MarketDataPoint[] = [];
 
     // Limit to lookback period and handle missing values
-    let validObservations = data.observations
-      .filter((obs: any) => obs.value !== '.' && !isNaN(parseFloat(obs.value)))
+    const validObservations = data.observations
+      .filter((obs: FREDObservation) => obs && typeof obs.value === 'string' && obs.value !== '.' && !isNaN(parseFloat(obs.value)))
       .slice(0, lookbackPeriod);
 
     for (const obs of validObservations) {
       marketData.push({
         date: obs.date,
-        price: parseFloat(obs.value)
+        price: parseFloat(obs.value as string)
       });
     }
 
@@ -525,7 +551,7 @@ async function fetchYahooFinanceData(
   const period2 = Math.floor(endDate.getTime() / 1000);
   
   // Construct URL based on asset type
-  let symbol = assetIdentifier;
+  let symbol = assetIdentifier.toUpperCase();
   
   // For forex, format as XXXYYY=X
   if (assetType === VaRAssetType.FOREIGN_EXCHANGE) {

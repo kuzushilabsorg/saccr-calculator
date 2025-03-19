@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { UseFormReturn } from 'react-hook-form';
 import {
   FormField,
@@ -26,7 +26,7 @@ import {
   VaRCalculationMethod,
   VaRAssetType,
 } from '@/lib/var/types';
-import { marketDataProviders } from '@/lib/var/market-data-service';
+import { marketDataProviders, PROVIDER_ASSET_TYPE_MAP } from '@/lib/var/market-data-service';
 
 interface VaRParametersFormProps {
   form: UseFormReturn<VaRFormSchemaType>;
@@ -39,38 +39,39 @@ interface VaRParametersFormProps {
  */
 export function VaRParametersForm({ form }: VaRParametersFormProps) {
   const [useExternalData, setUseExternalData] = useState(form.getValues().useExternalData || false);
-  const [selectedAssetTypes, setSelectedAssetTypes] = useState<VaRAssetType[]>([]);
-  const [availableProviders, setAvailableProviders] = useState(marketDataProviders);
-
-  // Watch for changes in positions to update available providers
-  useEffect(() => {
-    const subscription = form.watch((value, { name }) => {
-      if (name?.startsWith('positions') && name.includes('assetType')) {
-        updateSelectedAssetTypes();
+  const [availableProviders, setAvailableProviders] = useState<string[]>(marketDataProviders.map(provider => provider.id));
+  
+  // Get the positions from the form
+  const positions = form.watch('positions');
+  
+  // Create a memoized function to update selected asset types
+  const updateSelectedAssetTypes = useCallback(() => {
+    // Get unique asset types from positions
+    const assetTypes = new Set<VaRAssetType>();
+    positions.forEach(position => {
+      if (position.assetType) {
+        assetTypes.add(position.assetType);
       }
     });
+    
+    // Filter providers based on asset types
+    const filteredProviders = marketDataProviders.filter(provider => {
+      // Check if the provider supports all selected asset types
+      for (const assetType of assetTypes) {
+        if (!PROVIDER_ASSET_TYPE_MAP[provider.id]?.includes(assetType)) {
+          return false;
+        }
+      }
+      return true;
+    });
+    
+    setAvailableProviders(filteredProviders.length > 0 ? filteredProviders.map(provider => provider.id) : marketDataProviders.map(provider => provider.id));
+  }, [positions]);
 
-    // Initial update
+  // Update selected asset types when positions change
+  useEffect(() => {
     updateSelectedAssetTypes();
-
-    return () => subscription.unsubscribe();
-  }, [form]);
-
-  // Update the list of selected asset types from the form
-  const updateSelectedAssetTypes = () => {
-    const positions = form.getValues().positions || [];
-    const assetTypes = positions.map(p => p.assetType).filter((v, i, a) => a.indexOf(v) === i);
-    setSelectedAssetTypes(assetTypes);
-    
-    // Filter providers that support all selected asset types
-    const filteredProviders = marketDataProviders.filter(provider => 
-      assetTypes.every(assetType => 
-        provider.supportedAssetTypes.includes(assetType)
-      )
-    );
-    
-    setAvailableProviders(filteredProviders.length > 0 ? filteredProviders : marketDataProviders);
-  };
+  }, [updateSelectedAssetTypes]);
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -264,9 +265,9 @@ export function VaRParametersForm({ form }: VaRParametersFormProps) {
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  {availableProviders.map((provider) => (
-                    <SelectItem key={provider.id} value={provider.id}>
-                      {provider.name}
+                  {availableProviders.map((providerId) => (
+                    <SelectItem key={providerId} value={providerId}>
+                      {marketDataProviders.find(provider => provider.id === providerId)?.name}
                     </SelectItem>
                   ))}
                 </SelectContent>

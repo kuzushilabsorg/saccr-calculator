@@ -1,20 +1,24 @@
 import { NextResponse } from 'next/server';
 import { VaRCalculator } from '@/lib/var/var-calculator';
 import { varFormSchema } from '@/lib/var/schema';
-import { VaRInput, HistoricalMarketData, MarketDataPoint, VaRAssetType } from '@/lib/var/types';
+import { VaRInput, HistoricalMarketData, MarketDataPoint, VaRAssetType, VaRPosition } from '@/lib/var/types';
 import { DATA_PROVIDERS } from '@/lib/var/market-data-service';
 
-// Interface for standardized API responses
-interface StandardizedAPIResponse {
-  dates: string[];
-  prices: number[];
-  volumes?: number[];
-  metadata?: {
-    source: string;
-    startDate?: string;
-    endDate?: string;
-    dataPoints?: number;
-    [key: string]: any;
+// Interface for Yahoo Finance API response
+interface YahooFinanceResponse {
+  chart?: {
+    result?: Array<{
+      timestamp?: number[];
+      indicators?: {
+        quote?: Array<{
+          close?: number[];
+          volume?: number[];
+        }>;
+        adjclose?: Array<{
+          adjclose?: number[];
+        }>;
+      };
+    }>;
   };
 }
 
@@ -87,7 +91,7 @@ async function fetchServerHistoricalMarketData(
           throw new Error(`Yahoo Finance API responded with status ${response.status}: ${await response.text()}`);
         }
         
-        const yahooData = await response.json();
+        const yahooData: YahooFinanceResponse = await response.json();
         
         // Check if we have valid data
         if (!yahooData.chart || !yahooData.chart.result || yahooData.chart.result.length === 0) {
@@ -96,8 +100,8 @@ async function fetchServerHistoricalMarketData(
         
         const result = yahooData.chart.result[0];
         const timestamps = result.timestamp || [];
-        const quotes = result.indicators.quote[0] || {};
-        const adjClose = result.indicators.adjclose?.[0]?.adjclose || [];
+        const quotes = result.indicators?.quote?.[0] || {};
+        const adjClose = result.indicators?.adjclose?.[0]?.adjclose || [];
         
         // Extract dates and prices
         const dates: string[] = [];
@@ -107,7 +111,7 @@ async function fetchServerHistoricalMarketData(
         for (let i = 0; i < timestamps.length; i++) {
           const date = new Date(timestamps[i] * 1000).toISOString().split('T')[0];
           // Use adjusted close for more accurate historical comparison
-          const price = adjClose[i] || quotes.close[i];
+          const price = adjClose[i] || quotes.close?.[i];
           
           if (price !== undefined && price !== null) {
             dates.push(date);
@@ -138,26 +142,21 @@ async function fetchServerHistoricalMarketData(
         break;
         
       case DATA_PROVIDERS.ALPHA_VANTAGE:
-        // Alpha Vantage implementation
+        // Format the symbol according to Alpha Vantage requirements
+        let alphaVantageSymbol = assetIdentifier;
+        let alphaVantageFunction = 'TIME_SERIES_DAILY_ADJUSTED';
+        
+        if (assetType === VaRAssetType.FOREIGN_EXCHANGE) {
+          // Alpha Vantage uses different endpoint for forex
+          alphaVantageFunction = 'FX_DAILY';
+          // For forex, we need to split the currency pair
+          const [fromCurrency, toCurrency] = assetIdentifier.split('_');
+          alphaVantageSymbol = `${fromCurrency}${toCurrency}`;
+        }
+        
         const apiKey = process.env.ALPHA_VANTAGE_API_KEY;
         if (!apiKey) {
           throw new Error('Alpha Vantage API key not configured');
-        }
-        
-        let alphaVantageFunction = '';
-        let alphaVantageSymbol = assetIdentifier;
-        
-        if (assetType === VaRAssetType.EQUITY) {
-          alphaVantageFunction = 'TIME_SERIES_DAILY_ADJUSTED';
-        } else if (assetType === VaRAssetType.FOREIGN_EXCHANGE) {
-          alphaVantageFunction = 'FX_DAILY';
-          if (assetIdentifier.includes('_')) {
-            const [from, to] = assetIdentifier.split('_');
-            alphaVantageSymbol = `${from}&to_symbol=${to}`;
-          } else if (assetIdentifier.includes('/')) {
-            const [from, to] = assetIdentifier.split('/');
-            alphaVantageSymbol = `${from}&to_symbol=${to}`;
-          }
         }
         
         const alphaVantageUrl = `https://www.alphavantage.co/query?function=${alphaVantageFunction}&symbol=${alphaVantageSymbol}&outputsize=full&apikey=${apiKey}`;
@@ -171,43 +170,52 @@ async function fetchServerHistoricalMarketData(
         
         // Check for error messages
         if (alphaVantageData['Error Message']) {
-          throw new Error(`Alpha Vantage error: ${alphaVantageData['Error Message']}`);
+          throw new Error(`Alpha Vantage API error: ${alphaVantageData['Error Message']}`);
         }
         
-        // Parse the response based on the function used
         const alphaVantageDates: string[] = [];
         const alphaVantagePrices: number[] = [];
         const alphaVantageVolumes: number[] = [];
         
-        if (alphaVantageFunction === 'TIME_SERIES_DAILY_ADJUSTED') {
+        if (alphaVantageFunction === 'TIME_SERIES_DAILY_ADJUSTED' || alphaVantageFunction === 'TIME_SERIES_DAILY') {
+          if (!isTimeSeriesResponse(alphaVantageData)) {
+            throw new Error('Invalid Alpha Vantage time series response format');
+          }
+          
           const timeSeries = alphaVantageData['Time Series (Daily)'];
-          if (!timeSeries) {
-            throw new Error('No time series data found in Alpha Vantage response');
+          if (!timeSeries || Object.keys(timeSeries).length === 0) {
+            throw new Error(`No time series data found for ${alphaVantageSymbol}`);
           }
           
           // Convert to arrays and sort by date
           Object.entries(timeSeries)
             .sort(([dateA], [dateB]) => new Date(dateA).getTime() - new Date(dateB).getTime())
-            .forEach(([date, values]: [string, any]) => {
+            .forEach(([date, values]) => {
               alphaVantageDates.push(date);
-              alphaVantagePrices.push(parseFloat(values['5. adjusted close']));
-              alphaVantageVolumes.push(parseInt(values['6. volume'], 10));
+              alphaVantagePrices.push(parseFloat(values['5. adjusted close'] || values['4. close'] || '0'));
+              alphaVantageVolumes.push(parseInt(values['6. volume'] || '0', 10));
             });
         } else if (alphaVantageFunction === 'FX_DAILY') {
+          if (!isForexResponse(alphaVantageData)) {
+            throw new Error('Invalid Alpha Vantage forex response format');
+          }
+          
           const timeSeries = alphaVantageData['Time Series FX (Daily)'];
-          if (!timeSeries) {
-            throw new Error('No forex data found in Alpha Vantage response');
+          if (!timeSeries || Object.keys(timeSeries).length === 0) {
+            throw new Error(`No forex data found for ${alphaVantageSymbol}`);
           }
           
           // Convert to arrays and sort by date
           Object.entries(timeSeries)
             .sort(([dateA], [dateB]) => new Date(dateA).getTime() - new Date(dateB).getTime())
-            .forEach(([date, values]: [string, any]) => {
+            .forEach(([date, values]) => {
               alphaVantageDates.push(date);
-              alphaVantagePrices.push(parseFloat(values['4. close']));
+              alphaVantagePrices.push(parseFloat(values['4. close'] || '0'));
               // No volume for forex
               alphaVantageVolumes.push(0);
             });
+        } else {
+          throw new Error(`Unsupported Alpha Vantage function: ${alphaVantageFunction}`);
         }
         
         // Filter to lookback period
@@ -311,10 +319,12 @@ async function fetchServerHistoricalMarketData(
         break;
         
       case DATA_PROVIDERS.FRED:
-        // FRED implementation for interest rates and economic data
         if (assetType !== VaRAssetType.INTEREST_RATE) {
           throw new Error('FRED is primarily used for interest rate data');
         }
+        
+        // Format the symbol according to FRED requirements
+        const fredSeriesId = assetIdentifier;
         
         const fredApiKey = process.env.FRED_API_KEY;
         if (!fredApiKey) {
@@ -326,24 +336,24 @@ async function fetchServerHistoricalMarketData(
         const fredEndDate = endDate.toISOString().split('T')[0];
         
         // Construct FRED API URL
-        const fredUrl = `https://api.stlouisfed.org/fred/series/observations?series_id=${assetIdentifier}&api_key=${fredApiKey}&file_type=json&observation_start=${fredStartDate}&observation_end=${fredEndDate}&sort_order=asc`;
+        const fredUrl = `https://api.stlouisfed.org/fred/series/observations?series_id=${fredSeriesId}&api_key=${fredApiKey}&file_type=json&observation_start=${fredStartDate}&observation_end=${fredEndDate}&sort_order=asc`;
         
         const fredResponse = await fetch(fredUrl);
         if (!fredResponse.ok) {
-          throw new Error(`FRED API responded with status ${fredResponse.status}: ${await fredResponse.text()}`);
+          throw new Error(`FRED API responded with status ${fredResponse.status}`);
         }
         
-        const fredData = await fredResponse.json();
+        const fredData: FREDResponse = await fredResponse.json();
         
-        if (!fredData.observations || !Array.isArray(fredData.observations)) {
-          throw new Error('Invalid response format from FRED API');
+        if (fredData.error_message) {
+          throw new Error(`FRED API error: ${fredData.error_message}`);
         }
         
         const fredDates: string[] = [];
         const fredValues: number[] = [];
         
         // Process FRED data
-        fredData.observations.forEach((observation: any) => {
+        fredData.observations.forEach((observation: FREDObservation) => {
           if (observation.value !== '.') { // FRED uses '.' for missing values
             fredDates.push(observation.date);
             fredValues.push(parseFloat(observation.value));
@@ -362,7 +372,7 @@ async function fetchServerHistoricalMarketData(
           })),
           metadata: {
             dataSource: 'Federal Reserve Economic Data (FRED)',
-            dataSourceNotes: `Provider: ${DATA_PROVIDERS.FRED}, Series: ${assetIdentifier}`,
+            dataSourceNotes: `Provider: ${DATA_PROVIDERS.FRED}, Series: ${fredSeriesId}`,
             startDate: fredDates[0],
             endDate: fredDates[fredDates.length - 1],
             dataPoints: fredDates.length,
@@ -377,6 +387,21 @@ async function fetchServerHistoricalMarketData(
           throw new Error('Marketstack is primarily used for equity data');
         }
         
+        // Define interface for Marketstack API response
+        interface MarketstackDataItem {
+          date: string;
+          close: number;
+          adj_close?: number;
+          volume?: number;
+        }
+
+        interface MarketstackAPIResponse {
+          data: MarketstackDataItem[];
+        }
+        
+        // Format the symbol according to Marketstack requirements
+        const marketstackSymbol = assetIdentifier;
+        
         const marketstackApiKey = process.env.MARKETSTACK_API_KEY;
         if (!marketstackApiKey) {
           throw new Error('Marketstack API key not configured');
@@ -387,21 +412,21 @@ async function fetchServerHistoricalMarketData(
         const marketstackEndDate = endDate.toISOString().split('T')[0];
         
         // Construct Marketstack API URL
-        const marketstackUrl = `http://api.marketstack.com/v1/eod?access_key=${marketstackApiKey}&symbols=${assetIdentifier}&date_from=${marketstackStartDate}&date_to=${marketstackEndDate}&limit=1000`;
+        const marketstackUrl = `http://api.marketstack.com/v1/eod?access_key=${marketstackApiKey}&symbols=${marketstackSymbol}&date_from=${marketstackStartDate}&date_to=${marketstackEndDate}&limit=1000`;
         
         const marketstackResponse = await fetch(marketstackUrl);
         if (!marketstackResponse.ok) {
           throw new Error(`Marketstack API responded with status ${marketstackResponse.status}: ${await marketstackResponse.text()}`);
         }
         
-        const marketstackData = await marketstackResponse.json();
+        const marketstackData: MarketstackAPIResponse = await marketstackResponse.json();
         
         if (!marketstackData.data || !Array.isArray(marketstackData.data)) {
           throw new Error('Invalid response format from Marketstack API');
         }
         
         // Sort data by date (oldest first)
-        marketstackData.data.sort((a: any, b: any) => 
+        marketstackData.data.sort((a: MarketstackDataItem, b: MarketstackDataItem) => 
           new Date(a.date).getTime() - new Date(b.date).getTime()
         );
         
@@ -410,7 +435,7 @@ async function fetchServerHistoricalMarketData(
         const marketstackVolumes: number[] = [];
         
         // Process Marketstack data
-        marketstackData.data.forEach((item: any) => {
+        marketstackData.data.forEach((item: MarketstackDataItem) => {
           marketstackDates.push(item.date.split('T')[0]);
           marketstackPrices.push(item.adj_close || item.close);
           marketstackVolumes.push(item.volume || 0);
@@ -443,35 +468,29 @@ async function fetchServerHistoricalMarketData(
           throw new Error('Finnhub API key not configured');
         }
         
-        // Convert dates to UNIX timestamps for Finnhub
-        const finnhubFrom = Math.floor(startDate.getTime() / 1000);
-        const finnhubTo = Math.floor(endDate.getTime() / 1000);
-        
-        // Adjust symbol format based on asset type
+        // Format the symbol according to Finnhub requirements
         let finnhubSymbol = assetIdentifier;
-        let resolution = 'D'; // Daily candles
         
         if (assetType === VaRAssetType.FOREIGN_EXCHANGE) {
           // Finnhub uses format like OANDA:EUR_USD for forex
           if (!finnhubSymbol.includes(':')) {
             if (finnhubSymbol.includes('/')) {
-              const [base, quote] = finnhubSymbol.split('/');
-              finnhubSymbol = `OANDA:${base}_${quote}`;
+              const [from, to] = finnhubSymbol.split('/');
+              finnhubSymbol = `OANDA:${from}_${to}`;
             } else if (finnhubSymbol.includes('_')) {
               finnhubSymbol = `OANDA:${finnhubSymbol}`;
             } else {
-              throw new Error('Invalid forex symbol format for Finnhub');
+              throw new Error('Invalid forex symbol format for Finnhub. Use FORMAT_TO or FROM/TO');
             }
-          }
-        } else if (assetType === VaRAssetType.CRYPTO) {
-          // Finnhub uses format like BINANCE:BTCUSDT for crypto
-          if (!finnhubSymbol.includes(':')) {
-            finnhubSymbol = `BINANCE:${finnhubSymbol}USDT`;
           }
         }
         
+        // Convert dates to UNIX timestamps for Finnhub
+        const finnhubFrom = Math.floor(startDate.getTime() / 1000);
+        const finnhubTo = Math.floor(endDate.getTime() / 1000);
+        
         // Construct Finnhub API URL
-        const finnhubUrl = `https://finnhub.io/api/v1/stock/candle?symbol=${finnhubSymbol}&resolution=${resolution}&from=${finnhubFrom}&to=${finnhubTo}&token=${finnhubApiKey}`;
+        const finnhubUrl = `https://finnhub.io/api/v1/stock/candle?symbol=${finnhubSymbol}&resolution=D&from=${finnhubFrom}&to=${finnhubTo}&token=${finnhubApiKey}`;
         
         const finnhubResponse = await fetch(finnhubUrl);
         if (!finnhubResponse.ok) {
@@ -532,25 +551,14 @@ async function fetchServerHistoricalMarketData(
         }
         
         // Parse the currency pair
-        let baseCurrency = 'USD'; // OER uses USD as base by default
-        let quoteCurrency = currency;
-        
-        if (assetIdentifier.includes('/')) {
-          [baseCurrency, quoteCurrency] = assetIdentifier.split('/');
-        } else if (assetIdentifier.includes('_')) {
-          [baseCurrency, quoteCurrency] = assetIdentifier.split('_');
-        } else if (assetIdentifier.length === 6) {
-          // Format like EURUSD
-          baseCurrency = assetIdentifier.substring(0, 3);
-          quoteCurrency = assetIdentifier.substring(3, 6);
-        }
+        const oerBaseCurrency = currency;
+        const oerTargetCurrency = assetIdentifier.split('_')[0]; // Extract the target currency
         
         // For historical data, we need to make multiple API calls
         // OER free plan only allows historical data for USD base
         // For non-USD base, we'll need to convert
         
         const oerDates: string[] = [];
-        const oerPrices: number[] = [];
         
         // Calculate the number of days to fetch
         const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
@@ -568,7 +576,7 @@ async function fetchServerHistoricalMarketData(
         // Fetch data for each date
         const oerPromises = oerDates.map(async (date) => {
           const formattedDate = date.replace(/-/g, '');
-          const oerUrl = `https://openexchangerates.org/api/historical/${formattedDate}.json?app_id=${openExchangeRatesApiKey}&symbols=${quoteCurrency}`;
+          const oerUrl = `https://openexchangerates.org/api/historical/${formattedDate}.json?app_id=${openExchangeRatesApiKey}&symbols=${oerTargetCurrency}`;
           
           const response = await fetch(oerUrl);
           if (!response.ok) {
@@ -576,23 +584,23 @@ async function fetchServerHistoricalMarketData(
           }
           
           const data = await response.json();
-          if (!data.rates || !data.rates[quoteCurrency]) {
+          if (!data.rates || !data.rates[oerTargetCurrency]) {
             return null;
           }
           
-          let rate = data.rates[quoteCurrency];
+          let rate = data.rates[oerTargetCurrency];
           
           // If base is not USD, we need to convert
-          if (baseCurrency !== 'USD') {
+          if (oerBaseCurrency !== 'USD') {
             // Get the base currency rate against USD
-            const baseUrl = `https://openexchangerates.org/api/historical/${formattedDate}.json?app_id=${openExchangeRatesApiKey}&symbols=${baseCurrency}`;
+            const baseUrl = `https://openexchangerates.org/api/historical/${formattedDate}.json?app_id=${openExchangeRatesApiKey}&symbols=${oerBaseCurrency}`;
             const baseResponse = await fetch(baseUrl);
             
             if (baseResponse.ok) {
               const baseData = await baseResponse.json();
-              if (baseData.rates && baseData.rates[baseCurrency]) {
+              if (baseData.rates && baseData.rates[oerBaseCurrency]) {
                 // Convert: rate = (USD/quote) / (USD/base)
-                rate = rate / baseData.rates[baseCurrency];
+                rate = rate / baseData.rates[oerBaseCurrency];
               }
             }
           }
@@ -603,19 +611,15 @@ async function fetchServerHistoricalMarketData(
         // Wait for all requests to complete
         const oerResults = await Promise.all(oerPromises);
         
-        // Filter out failed requests and sort by date
-        const validResults = oerResults
-          .filter(result => result !== null)
-          .sort((a, b) => new Date(a!.date).getTime() - new Date(b!.date).getTime());
-        
-        // Extract dates and rates
-        const validDates = validResults.map(result => result!.date);
-        const validRates = validResults.map(result => result!.rate);
+        // Filter out null results and extract dates and rates
+        const validResults = oerResults.filter(result => result !== null) as { date: string; rate: number }[];
+        const validDates = validResults.map(result => result.date);
+        const validRates = validResults.map(result => result.rate);
         
         data = {
           assetIdentifier,
           assetType,
-          currency: quoteCurrency,
+          currency: oerTargetCurrency,
           data: validDates.map((date, index) => ({
             date,
             price: validRates[index],
@@ -623,7 +627,7 @@ async function fetchServerHistoricalMarketData(
           })),
           metadata: {
             dataSource: 'Open Exchange Rates',
-            dataSourceNotes: `Provider: ${DATA_PROVIDERS.OPEN_EXCHANGE_RATES}, Base: ${baseCurrency}, Quote: ${quoteCurrency}`,
+            dataSourceNotes: `Provider: ${DATA_PROVIDERS.OPEN_EXCHANGE_RATES}, Base: ${oerBaseCurrency}, Quote: ${oerTargetCurrency}`,
             startDate: validDates[0],
             endDate: validDates[validDates.length - 1],
             dataPoints: validDates.length,
@@ -633,9 +637,23 @@ async function fetchServerHistoricalMarketData(
         break;
         
       case DATA_PROVIDERS.WORLD_BANK:
-        // World Bank implementation for interest rates and economic indicators
+        // World Bank implementation for interest rates and economic data
         if (assetType !== VaRAssetType.INTEREST_RATE) {
           throw new Error('World Bank data is primarily used for interest rates and economic indicators');
+        }
+        
+        // Define interface for World Bank API response
+        interface WorldBankDataItem {
+          date: string;
+          value: number | null;
+          country?: {
+            id: string;
+            value: string;
+          };
+          indicator?: {
+            id: string;
+            value: string;
+          };
         }
         
         // Format dates for World Bank API (YYYY format)
@@ -661,12 +679,12 @@ async function fetchServerHistoricalMarketData(
         const worldBankValues: number[] = [];
         
         // Process World Bank data
-        worldBankData[1].forEach((item: any) => {
+        worldBankData[1].forEach((item: WorldBankDataItem) => {
           if (item.value !== null) {
             // World Bank data is annual, so we'll use the year as date
             const date = `${item.date}-01-01`; // January 1st of the year
             worldBankDates.push(date);
-            worldBankValues.push(parseFloat(item.value));
+            worldBankValues.push(item.value);
           }
         });
         
@@ -724,6 +742,56 @@ async function fetchServerHistoricalMarketData(
     console.error(`Server-side data fetch error: ${error instanceof Error ? error.message : String(error)}`);
     throw error;
   }
+}
+
+// Alpha Vantage response interfaces
+interface AlphaVantageTimeSeriesResponse {
+  'Time Series (Daily)': Record<string, AlphaVantageDataPoint>;
+  'Error Message'?: string;
+}
+
+interface AlphaVantageForexResponse {
+  'Time Series FX (Daily)': Record<string, AlphaVantageDataPoint>;
+  'Error Message'?: string;
+}
+
+interface AlphaVantageDataPoint {
+  '1. open'?: string;
+  '2. high'?: string;
+  '3. low'?: string;
+  '4. close'?: string;
+  '5. adjusted close'?: string;
+  '6. volume'?: string;
+}
+
+// FRED API response interface
+interface FREDObservation {
+  date: string;
+  value: string;
+  realtime_start?: string;
+  realtime_end?: string;
+}
+
+interface FREDResponse {
+  observations: FREDObservation[];
+  error_message?: string;
+}
+
+// Type guard functions
+function isTimeSeriesResponse(data: unknown): data is AlphaVantageTimeSeriesResponse {
+  return (
+    typeof data === 'object' && 
+    data !== null && 
+    'Time Series (Daily)' in data
+  );
+}
+
+function isForexResponse(data: unknown): data is AlphaVantageForexResponse {
+  return (
+    typeof data === 'object' && 
+    data !== null && 
+    'Time Series FX (Daily)' in data
+  );
 }
 
 /**
@@ -835,19 +903,19 @@ export async function POST(request: Request) {
  * @param positions Array of positions to generate data for
  * @returns Array of historical market data for each position
  */
-function generateSyntheticHistoricalData(positions: any[]): HistoricalMarketData[] {
+function generateSyntheticHistoricalData(positions: VaRPosition[]): HistoricalMarketData[] {
   return positions.map(position => {
     // Generate dates for the past year
     const dates: string[] = [];
     const prices: number[] = [];
     const volumes: number[] = [];
     
-    const endDate = new Date();
+    const currentDate = new Date();
     const startDate = new Date();
-    startDate.setDate(startDate.getDate() - 252); // Approximately 1 year of trading days
+    startDate.setDate(currentDate.getDate() - 252); // Approximately 1 year of trading days
     
     // Set initial price based on current price
-    let currentPrice = position.currentPrice;
+    const currentPrice = position.currentPrice;
     
     // Define asset-specific parameters
     let volatility = 0.01; // Default daily volatility (1%)

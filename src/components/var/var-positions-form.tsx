@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { VaRPositionForm } from './var-position-form';
 import { VaRFormSchemaType } from '@/lib/var/schema';
 import { VaRAssetType } from '@/lib/var/types';
-import { Plus, Trash } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 
 interface VaRPositionsFormProps {

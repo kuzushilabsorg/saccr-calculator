@@ -3,18 +3,18 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { v4 as uuidv4 } from 'uuid';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Form } from '@/components/ui/form';
+import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { VaRParametersForm } from './var-parameters-form';
 import { VaRPositionsForm } from './var-positions-form';
 import { VaRResults } from './var-results';
-import { VaRFormSchemaType, varFormSchema } from '@/lib/var/schema';
-import { VaRAssetType, VaRCalculationMethod, VaRConfidenceLevel, VaRTimeHorizon } from '@/lib/var/types';
-import { LoadingSpinner } from '@/components/ui/loading-spinner';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { varFormSchema, VaRFormSchemaType } from '@/lib/var/schema';
+import { v4 as uuidv4 } from 'uuid';
+import { VaRAssetType, VaRCalculationMethod, VaRConfidenceLevel, VaRTimeHorizon, VaRResult } from '@/lib/var/types';
 import { AlertCircle, Info } from 'lucide-react';
 
 /**
@@ -23,9 +23,9 @@ import { AlertCircle, Info } from 'lucide-react';
  * This component provides a form for calculating VaR for a portfolio of positions.
  */
 export function VaRForm() {
+  const [result, setResult] = useState<VaRResult | null>(null);
   const [isCalculating, setIsCalculating] = useState(false);
   const [isFetchingExternalData, setIsFetchingExternalData] = useState(false);
-  const [results, setResults] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('parameters');
 
@@ -86,7 +86,7 @@ export function VaRForm() {
       }
 
       const result = await response.json();
-      setResults(result);
+      setResult(result);
       setActiveTab('results');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unknown error occurred');
@@ -111,7 +111,7 @@ export function VaRForm() {
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="parameters">Parameters</TabsTrigger>
                 <TabsTrigger value="positions">Positions</TabsTrigger>
-                <TabsTrigger value="results" disabled={!results}>
+                <TabsTrigger value="results" disabled={!result}>
                   Results
                 </TabsTrigger>
               </TabsList>
@@ -125,7 +125,7 @@ export function VaRForm() {
                     <AlertTitle>Using External Market Data</AlertTitle>
                     <AlertDescription>
                       <p className="mb-2">
-                        You've enabled external market data fetching. Here's how to use it effectively:
+                        You&apos;ve enabled external market data fetching. Here&apos;s how to use it effectively:
                       </p>
                       <ul className="list-disc pl-5 space-y-1 text-sm">
                         <li>
@@ -147,6 +147,9 @@ export function VaRForm() {
                           <strong>Note:</strong> If external data cannot be fetched, the calculator will fall back to synthetic data.
                         </li>
                       </ul>
+                      <p className="text-sm text-muted-foreground">
+                        Don&apos;t worry if you don&apos;t have real market data - we&apos;ll generate synthetic data for you.
+                      </p>
                     </AlertDescription>
                   </Alert>
                 )}
@@ -157,7 +160,7 @@ export function VaRForm() {
               </TabsContent>
               
               <TabsContent value="results" className="py-4">
-                {results && <VaRResults results={results} />}
+                {result && <VaRResults results={result} />}
               </TabsContent>
             </Tabs>
 

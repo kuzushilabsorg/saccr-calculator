@@ -109,7 +109,7 @@ export class VaRCalculator {
       diversificationBenefit,
       returnDistribution,
       stressScenarios,
-      timestamp: new Date().toISOString(),
+      timestamp: Date.now(),
       parameters,
     };
   }

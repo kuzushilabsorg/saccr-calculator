@@ -216,7 +216,11 @@ export function VaRPositionForm({ form, index, onRemove }: VaRPositionFormProps)
               <FormItem>
                 <FormLabel>Purchase Date (Optional)</FormLabel>
                 <FormControl>
-                  <Input type="date" {...field} value={field.value || ''} />
+                  <Input 
+                    type="date" 
+                    {...field} 
+                    value={field.value ? (typeof field.value === 'string' ? field.value : field.value.toISOString().split('T')[0]) : ''} 
+                  />
                 </FormControl>
                 <FormDescription>
                   Date when the position was acquired
