@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { Toaster } from 'sonner';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowRight, BarChart3, Calculator, FileSpreadsheet } from 'lucide-react';
+import { ArrowRight, BarChart3, Calculator, FileSpreadsheet, TrendingUp } from 'lucide-react';
 
 export default function Home() {
   return (
@@ -104,6 +104,52 @@ export default function Home() {
               <Link href="/initial-margin" className="w-full">
                 <Button className="w-full">
                   Open Initial Margin Calculator
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </Link>
+            </CardFooter>
+          </Card>
+
+          {/* PFE Calculator Card */}
+          <Card className="transition-all hover:shadow-md">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-2xl flex items-center gap-2">
+                <TrendingUp className="h-6 w-6 text-primary" />
+                PFE Calculator
+              </CardTitle>
+              <CardDescription>
+                Potential Future Exposure based on SA-CCR Framework
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pb-3">
+              <p className="text-muted-foreground">
+                Calculate Potential Future Exposure (PFE) for derivative portfolios using regulatory and internal methodologies.
+              </p>
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <div className="rounded-lg border p-3">
+                  <h3 className="font-medium flex items-center gap-2">
+                    <FileSpreadsheet className="h-4 w-4" /> 
+                    Multiple Methodologies
+                  </h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    SA-CCR, Internal Model, and Historical Simulation
+                  </p>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <h3 className="font-medium flex items-center gap-2">
+                    <BarChart3 className="h-4 w-4" /> 
+                    Exposure Profiling
+                  </h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Visualize exposure profiles over multiple time horizons
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+            <CardFooter>
+              <Link href="/pfe" className="w-full">
+                <Button className="w-full">
+                  Open PFE Calculator
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </Link>
