@@ -201,6 +201,52 @@ export default function Home() {
               </Link>
             </CardFooter>
           </Card>
+
+          {/* VM-CSA Analysis Tool Card */}
+          <Card className="transition-all hover:shadow-md">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-2xl flex items-center gap-2">
+                <FileSpreadsheet className="h-6 w-6 text-primary" />
+                VM-CSA Analysis Tool
+              </CardTitle>
+              <CardDescription>
+                Variation Margin Credit Support Annex Analysis
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pb-3">
+              <p className="text-muted-foreground">
+                Analyze VM-CSA documents and client data to generate trading recommendations based on legal agreement terms.
+              </p>
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <div className="rounded-lg border p-3">
+                  <h3 className="font-medium flex items-center gap-2">
+                    <FileSpreadsheet className="h-4 w-4" /> 
+                    Document Analysis
+                  </h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Upload and analyze VM-CSA documents with AI assistance
+                  </p>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <h3 className="font-medium flex items-center gap-2">
+                    <BarChart3 className="h-4 w-4" /> 
+                    Trading Recommendations
+                  </h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Get insights on trading decisions based on document analysis
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+            <CardFooter>
+              <Link href="/vm-csa" className="w-full">
+                <Button className="w-full">
+                  Open VM-CSA Analysis Tool
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </Link>
+            </CardFooter>
+          </Card>
         </div>
       </main>
 
