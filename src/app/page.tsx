@@ -155,9 +155,7 @@ export default function Home() {
               </Link>
             </CardFooter>
           </Card>
-        </div>
 
-        <div className="grid gap-8 md:grid-cols-2 mt-8">
           {/* Historical VaR Calculator Card */}
           <Card className="transition-all hover:shadow-md">
             <CardHeader className="pb-3">
