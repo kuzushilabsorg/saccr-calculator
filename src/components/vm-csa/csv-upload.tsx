@@ -8,7 +8,12 @@ import { FileSpreadsheet, AlertCircle, Upload } from "lucide-react";
 interface CSVUploadProps {
   documentId: string;
   documentContent: string;
-  onAnalysisComplete: (recommendations: any[], summary: string) => void;
+  onAnalysisComplete: (recommendations: Array<{
+    type: "continue" | "review" | "terminate" | "other";
+    description: string;
+    riskLevel: "low" | "medium" | "high";
+    reasoning: string;
+  }>, summary: string) => void;
   isLoading: boolean;
   setIsLoading: (loading: boolean) => void;
 }

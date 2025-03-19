@@ -1,9 +1,9 @@
 import OpenAI from "openai";
-import { OpenAIAnalysisRequest, OpenAIAnalysisResponse } from "./types";
+import { OpenAIAnalysisResponse } from "./types";
 
 // Initialize OpenAI client
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+  apiKey: process.env.OPENAI_API_KEY || 'dummy-key-for-build',
 });
 
 /**
@@ -19,12 +19,9 @@ export class OpenAIService {
     file: File
   ): Promise<OpenAIAnalysisResponse> {
     try {
-      // Convert the File to a Blob with the correct MIME type
-      const fileBlob = new Blob([await file.arrayBuffer()], { type: file.type });
-      
       // Create a FormData object to send the file
       const formData = new FormData();
-      formData.append('file', fileBlob, file.name);
+      formData.append('file', file, file.name);
       
       // Call OpenAI with the file attachment
       const completion = await openai.chat.completions.create({
@@ -91,9 +88,6 @@ YOUR RESPONSE SHOULD BE IN THE FOLLOWING JSON FORMAT:
     csvContent: string
   ): Promise<OpenAIAnalysisResponse> {
     try {
-      // Convert the File to a Blob with the correct MIME type
-      const fileBlob = new Blob([await documentFile.arrayBuffer()], { type: documentFile.type });
-      
       // Call OpenAI with the file attachment and CSV content
       const completion = await openai.chat.completions.create({
         model: "gpt-4-vision-preview",

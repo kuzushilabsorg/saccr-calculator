@@ -44,7 +44,7 @@ export default function PFEForm() {
         marginPeriodOfRisk: "10",
         timeHorizon: PFETimeHorizon.ONE_MONTH,
         confidenceLevel: PFEConfidenceLevel.NINETY_FIVE_PERCENT,
-        calculationMethod: PFECalculationMethod.REGULATORY_SA_CCR,
+        calculationMethod: PFECalculationMethod.MONTE_CARLO_SIMULATION,
       },
       trades: [
         {

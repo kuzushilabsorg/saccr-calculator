@@ -51,12 +51,14 @@ export default function PFEResults({ result, formData }: PFEResultsProps) {
   // Helper function to format calculation method for display
   const formatCalculationMethod = (method: PFECalculationMethod): string => {
     switch (method) {
-      case PFECalculationMethod.REGULATORY_SA_CCR:
-        return 'Regulatory SA-CCR';
-      case PFECalculationMethod.INTERNAL_MODEL:
-        return 'Internal Model';
-      case PFECalculationMethod.HISTORICAL_SIMULATION:
-        return 'Historical Simulation';
+      case PFECalculationMethod.REGULATORY_STANDARDISED_APPROACH:
+        return 'Regulatory Standardised Approach';
+      case PFECalculationMethod.INTERNAL_MODEL_METHOD:
+        return 'Internal Model Method';
+      case PFECalculationMethod.HISTORICAL_SIMULATION_METHOD:
+        return 'Historical Simulation Method';
+      case PFECalculationMethod.MONTE_CARLO_SIMULATION:
+        return 'Monte Carlo Simulation';
       default:
         return method;
     }

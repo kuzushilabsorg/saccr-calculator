@@ -17,7 +17,7 @@ interface AnalysisResultsProps {
 
 export function AnalysisResults({ recommendations, summary }: AnalysisResultsProps) {
   // Helper function to get the appropriate icon and color for a recommendation type
-  const getRecommendationDetails = (type: string, riskLevel: string) => {
+  const getRecommendationDetails = (type: string) => {
     switch (type) {
       case "continue":
         return {
@@ -77,7 +77,8 @@ export function AnalysisResults({ recommendations, summary }: AnalysisResultsPro
             <Info className="h-4 w-4" />
             <AlertTitle>Analysis Complete</AlertTitle>
             <AlertDescription>
-              We've analyzed the client data against the VM-CSA requirements and generated recommendations.
+              We&apos;ve analyzed the client data against the VM-CSA requirements and generated recommendations.
+              Each recommendation is categorized by type and risk level.
             </AlertDescription>
           </Alert>
 
@@ -94,7 +95,7 @@ export function AnalysisResults({ recommendations, summary }: AnalysisResultsPro
             ) : (
               <div className="space-y-4">
                 {recommendations.map((recommendation, index) => {
-                  const { icon, color, label } = getRecommendationDetails(recommendation.type, recommendation.riskLevel);
+                  const { icon, color, label } = getRecommendationDetails(recommendation.type);
                   const riskBadgeColor = getRiskBadgeColor(recommendation.riskLevel);
                   
                   return (

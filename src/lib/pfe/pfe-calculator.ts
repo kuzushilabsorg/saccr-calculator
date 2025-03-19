@@ -43,28 +43,34 @@ export class PFECalculator {
     
     // Calculate PFE based on calculation method
     switch (nettingSet.calculationMethod) {
-      case PFECalculationMethod.REGULATORY_SA_CCR:
+      case PFECalculationMethod.REGULATORY_STANDARDISED_APPROACH:
         // Implement SA-CCR methodology
         ({ potentialFutureExposure, expectedExposure, peakExposure, stressedPFE } = 
-          this.calculatePFEUsingSACCR(trades, nettingSet, assetClassBreakdown));
+          this.calculatePFEUsingStandardisedApproach(trades, nettingSet, assetClassBreakdown));
         break;
       
-      case PFECalculationMethod.INTERNAL_MODEL:
+      case PFECalculationMethod.MONTE_CARLO_SIMULATION:
+        // Implement Monte Carlo simulation methodology
+        ({ potentialFutureExposure, expectedExposure, peakExposure, stressedPFE } = 
+          this.calculatePFEUsingMonteCarloSimulation(trades, nettingSet, assetClassBreakdown));
+        break;
+      
+      case PFECalculationMethod.INTERNAL_MODEL_METHOD:
         // Implement internal model methodology
         ({ potentialFutureExposure, expectedExposure, peakExposure, stressedPFE } = 
           this.calculatePFEUsingInternalModel(trades, nettingSet, assetClassBreakdown));
         break;
       
-      case PFECalculationMethod.HISTORICAL_SIMULATION:
+      case PFECalculationMethod.HISTORICAL_SIMULATION_METHOD:
         // Implement historical simulation methodology
         ({ potentialFutureExposure, expectedExposure, peakExposure, stressedPFE } = 
           this.calculatePFEUsingHistoricalSimulation(trades, nettingSet, assetClassBreakdown));
         break;
       
       default:
-        // Default to SA-CCR
+        // Default to Standardised Approach
         ({ potentialFutureExposure, expectedExposure, peakExposure, stressedPFE } = 
-          this.calculatePFEUsingSACCR(trades, nettingSet, assetClassBreakdown));
+          this.calculatePFEUsingStandardisedApproach(trades, nettingSet, assetClassBreakdown));
     }
     
     // Generate exposure profile over time
@@ -93,14 +99,14 @@ export class PFECalculator {
   }
   
   /**
-   * Calculate PFE using the SA-CCR methodology
+   * Calculate PFE using the Standardised Approach methodology
    * 
    * @param trades The trades to calculate PFE for
    * @param nettingSet The netting set information
    * @param assetClassBreakdown Record to store PFE contribution by asset class
    * @returns The PFE calculation components
    */
-  private static calculatePFEUsingSACCR(
+  private static calculatePFEUsingStandardisedApproach(
     trades: PFETradeData[],
     nettingSet: PFEInput['nettingSet'],
     assetClassBreakdown: Record<string, number>
@@ -189,6 +195,383 @@ export class PFECalculator {
       peakExposure: maxPFE,
       stressedPFE,
     };
+  }
+  
+  /**
+   * Calculate PFE using Monte Carlo simulation methodology
+   * 
+   * @param trades The trades to calculate PFE for
+   * @param nettingSet The netting set information
+   * @param assetClassBreakdown Record to store PFE contribution by asset class
+   * @returns The PFE calculation components
+   */
+  private static calculatePFEUsingMonteCarloSimulation(
+    trades: PFETradeData[],
+    nettingSet: PFEInput['nettingSet'],
+    assetClassBreakdown: Record<string, number>
+  ): {
+    potentialFutureExposure: number;
+    expectedExposure: number;
+    peakExposure: number;
+    stressedPFE?: number;
+  } {
+    // Implementation of Monte Carlo simulation methodology
+    
+    // Group trades by asset class
+    const tradesByAssetClass: Record<string, PFETradeData[]> = {};
+    trades.forEach(trade => {
+      if (!tradesByAssetClass[trade.assetClass]) {
+        tradesByAssetClass[trade.assetClass] = [];
+      }
+      tradesByAssetClass[trade.assetClass].push(trade);
+    });
+    
+    // Monte Carlo simulation parameters
+    const numSimulations = 10000;
+    const numTimeSteps = this.getTimeStepsForHorizon(nettingSet.timeHorizon);
+    const confidenceLevel = this.getConfidenceLevelPercentile(nettingSet.confidenceLevel);
+    
+    // Initialize simulation results arrays
+    const simulationResults: number[] = new Array(numSimulations).fill(0);
+    const timeStepResults: number[][] = Array(numTimeSteps).fill(0).map(() => new Array(numSimulations).fill(0));
+    
+    // Run Monte Carlo simulations
+    for (let sim = 0; sim < numSimulations; sim++) {
+      // Initialize market factors for this simulation
+      const marketFactors = this.initializeMarketFactors(trades);
+      
+      // Simulate market factor paths over time steps
+      const marketFactorPaths = this.simulateMarketFactorPaths(marketFactors, numTimeSteps);
+      
+      // Calculate portfolio value at each time step
+      for (let step = 0; step < numTimeSteps; step++) {
+        let portfolioValue = 0;
+        
+        // Calculate value for each asset class
+        Object.entries(tradesByAssetClass).forEach(([assetClass, assetClassTrades]) => {
+          const assetClassValue = this.calculateAssetClassValue(
+            assetClassTrades, 
+            marketFactorPaths[step][assetClass as AssetClass],
+            step,
+            numTimeSteps
+          );
+          
+          // Add to portfolio value for this time step and simulation
+          portfolioValue += assetClassValue;
+          
+          // Store in time step results
+          timeStepResults[step][sim] = portfolioValue;
+        });
+        
+        // Store maximum exposure across time steps for this simulation
+        if (portfolioValue > simulationResults[sim]) {
+          simulationResults[sim] = portfolioValue;
+        }
+      }
+    }
+    
+    // Sort simulation results for percentile calculation
+    simulationResults.sort((a, b) => a - b);
+    
+    // Calculate PFE at the specified confidence level
+    const pfeIndex = Math.floor(numSimulations * confidenceLevel);
+    const potentialFutureExposure = simulationResults[pfeIndex];
+    
+    // Calculate expected exposure (average across simulations)
+    const expectedExposure = simulationResults.reduce((sum, val) => sum + val, 0) / numSimulations;
+    
+    // Calculate peak exposure (maximum across all simulations)
+    const peakExposure = Math.max(...simulationResults);
+    
+    // Calculate stressed PFE (using stress scenarios)
+    const stressedPFE = this.calculateStressedPFE(simulationResults, trades);
+    
+    // Calculate asset class breakdown
+    Object.keys(assetClassBreakdown).forEach(assetClass => {
+      // Calculate contribution of each asset class to total PFE
+      const assetClassTrades = tradesByAssetClass[assetClass] || [];
+      if (assetClassTrades.length > 0) {
+        const assetClassWeight = assetClassTrades.reduce((sum, trade) => sum + trade.notionalAmount, 0) / 
+          trades.reduce((sum, trade) => sum + trade.notionalAmount, 0);
+        
+        // Apply some diversification benefit
+        const diversificationFactor = 0.85; // Assets are not perfectly correlated
+        assetClassBreakdown[assetClass] = potentialFutureExposure * assetClassWeight * diversificationFactor;
+      } else {
+        assetClassBreakdown[assetClass] = 0;
+      }
+    });
+    
+    return {
+      potentialFutureExposure,
+      expectedExposure,
+      peakExposure,
+      stressedPFE,
+    };
+  }
+  
+  /**
+   * Initialize market factors for Monte Carlo simulation
+   * 
+   * @param trades The trades to initialize market factors for
+   * @returns The initialized market factors
+   */
+  private static initializeMarketFactors(trades: PFETradeData[]): Record<AssetClass, number> {
+    // Initialize market factors for each asset class
+    const marketFactors: Record<AssetClass, number> = {} as Record<AssetClass, number>;
+    
+    // Get unique asset classes
+    const assetClasses = Array.from(new Set(trades.map(trade => trade.assetClass)));
+    
+    // Initialize market factors with base values
+    assetClasses.forEach(assetClass => {
+      // Base market factor (starting point for simulation)
+      marketFactors[assetClass] = 1.0;
+    });
+    
+    return marketFactors;
+  }
+  
+  /**
+   * Simulate market factor paths for Monte Carlo simulation
+   * 
+   * @param initialMarketFactors The initial market factors
+   * @param numTimeSteps The number of time steps to simulate
+   * @returns The simulated market factor paths
+   */
+  private static simulateMarketFactorPaths(
+    initialMarketFactors: Record<AssetClass, number>,
+    numTimeSteps: number
+  ): Array<Record<AssetClass, number>> {
+    // Simulate market factor paths using Geometric Brownian Motion
+    const marketFactorPaths: Array<Record<AssetClass, number>> = [];
+    
+    // Initialize with initial market factors
+    marketFactorPaths.push({...initialMarketFactors});
+    
+    // Simulate for each time step
+    for (let step = 1; step < numTimeSteps; step++) {
+      const newMarketFactors: Record<AssetClass, number> = {} as Record<AssetClass, number>;
+      
+      // Simulate each asset class
+      Object.entries(initialMarketFactors).forEach(([assetClass]) => {
+        // Get parameters for this asset class
+        const drift = this.getAssetClassDrift(assetClass as AssetClass);
+        const volatility = this.getAssetClassVolatility(assetClass as AssetClass);
+        
+        // Time increment (normalized to 1 year)
+        const dt = 1.0 / numTimeSteps;
+        
+        // Previous value
+        const prevValue = marketFactorPaths[step - 1][assetClass as AssetClass];
+        
+        // Generate random normal variable
+        const randomNormal = this.generateNormalRandom();
+        
+        // Geometric Brownian Motion formula
+        const newValue = prevValue * Math.exp(
+          (drift - 0.5 * volatility * volatility) * dt + 
+          volatility * Math.sqrt(dt) * randomNormal
+        );
+        
+        newMarketFactors[assetClass as AssetClass] = newValue;
+      });
+      
+      marketFactorPaths.push(newMarketFactors);
+    }
+    
+    return marketFactorPaths;
+  }
+  
+  /**
+   * Calculate asset class value for Monte Carlo simulation
+   * 
+   * @param trades The trades in the asset class
+   * @param marketFactor The market factor for the asset class
+   * @param timeStep The current time step
+   * @param totalTimeSteps The total number of time steps
+   * @returns The asset class value
+   */
+  private static calculateAssetClassValue(
+    trades: PFETradeData[],
+    marketFactor: number,
+    timeStep: number,
+    totalTimeSteps: number
+  ): number {
+    // Calculate value for each trade
+    return trades.reduce((sum, trade) => {
+      // Calculate time to maturity
+      const maturityDate = new Date(trade.maturityDate);
+      const today = new Date();
+      const maturityInYears = (maturityDate.getTime() - today.getTime()) / (365 * 24 * 60 * 60 * 1000);
+      
+      // Calculate time factor (fraction of time step to maturity)
+      const timeToMaturityInSteps = (maturityInYears * totalTimeSteps) - timeStep;
+      const timeFactor = Math.max(0, Math.min(1, timeToMaturityInSteps / totalTimeSteps));
+      
+      // Calculate trade value based on market factor and time to maturity
+      let tradeValue = trade.notionalAmount * (marketFactor - 1.0) * timeFactor;
+      
+      // Apply adjustments based on transaction type
+      if (trade.transactionType === TransactionType.OPTION) {
+        // Option valuation (simplified)
+        if (trade.positionType === PositionType.LONG) {
+          // Long option - value can't be negative
+          tradeValue = Math.max(0, tradeValue);
+        } else {
+          // Short option - value is capped
+          tradeValue = Math.min(0, tradeValue);
+        }
+      }
+      
+      return sum + tradeValue;
+    }, 0);
+  }
+  
+  /**
+   * Calculate stressed PFE from simulation results
+   * 
+   * @param simulationResults The simulation results
+   * @param trades The trades in the portfolio
+   * @returns The stressed PFE
+   */
+  private static calculateStressedPFE(simulationResults: number[], trades: PFETradeData[]): number {
+    // Calculate stressed PFE by applying stress factors to simulation results
+    
+    // Get maximum exposure from simulations
+    const maxExposure = Math.max(...simulationResults);
+    
+    // Apply stress factor based on asset class composition
+    const assetClassWeights: Record<AssetClass, number> = {} as Record<AssetClass, number>;
+    const totalNotional = trades.reduce((sum, trade) => sum + trade.notionalAmount, 0);
+    
+    // Calculate weights by asset class
+    trades.forEach(trade => {
+      if (!assetClassWeights[trade.assetClass]) {
+        assetClassWeights[trade.assetClass] = 0;
+      }
+      assetClassWeights[trade.assetClass] += trade.notionalAmount / totalNotional;
+    });
+    
+    // Apply stress factors by asset class
+    let stressFactor = 0;
+    Object.entries(assetClassWeights).forEach(([assetClass, weight]) => {
+      // Get stress factor for this asset class
+      const assetClassStressFactor = this.getAssetClassStressFactor(assetClass as AssetClass);
+      stressFactor += weight * assetClassStressFactor;
+    });
+    
+    // Apply minimum stress factor
+    stressFactor = Math.max(1.5, stressFactor);
+    
+    return maxExposure * stressFactor;
+  }
+  
+  /**
+   * Generate a random number from a standard normal distribution
+   * 
+   * @returns A random number from a standard normal distribution
+   */
+  private static generateNormalRandom(): number {
+    // Box-Muller transform to generate normal random variable
+    const u1 = Math.random();
+    const u2 = Math.random();
+    
+    return Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2);
+  }
+  
+  /**
+   * Get the number of time steps for a time horizon
+   * 
+   * @param timeHorizon The time horizon
+   * @returns The number of time steps
+   */
+  private static getTimeStepsForHorizon(timeHorizon: PFETimeHorizon): number {
+    // Map time horizon to number of time steps
+    switch (timeHorizon) {
+      case PFETimeHorizon.ONE_WEEK:
+        return 5; // Daily steps for a week
+      case PFETimeHorizon.TWO_WEEKS:
+        return 10; // Daily steps for two weeks
+      case PFETimeHorizon.ONE_MONTH:
+        return 21; // Daily steps for a month
+      case PFETimeHorizon.THREE_MONTHS:
+        return 63; // Daily steps for three months
+      case PFETimeHorizon.SIX_MONTHS:
+        return 126; // Daily steps for six months
+      case PFETimeHorizon.ONE_YEAR:
+        return 252; // Daily steps for a year
+      default:
+        return 21; // Default to one month
+    }
+  }
+  
+  /**
+   * Get the percentile value for a confidence level
+   * 
+   * @param confidenceLevel The confidence level
+   * @returns The percentile value
+   */
+  private static getConfidenceLevelPercentile(confidenceLevel: PFEConfidenceLevel): number {
+    // Map confidence level to percentile
+    switch (confidenceLevel) {
+      case PFEConfidenceLevel.NINETY_FIVE_PERCENT:
+        return 0.95;
+      case PFEConfidenceLevel.NINETY_SEVEN_POINT_FIVE_PERCENT:
+        return 0.975;
+      case PFEConfidenceLevel.NINETY_NINE_PERCENT:
+        return 0.99;
+      default:
+        return 0.95; // Default to 95%
+    }
+  }
+  
+  /**
+   * Get the drift parameter for an asset class
+   * 
+   * @param assetClass The asset class
+   * @returns The drift parameter
+   */
+  private static getAssetClassDrift(assetClass: AssetClass): number {
+    // Drift parameters by asset class (annualized)
+    switch (assetClass) {
+      case AssetClass.INTEREST_RATE:
+        return 0.005; // 0.5% drift for interest rates
+      case AssetClass.FOREIGN_EXCHANGE:
+        return 0.01; // 1% drift for FX
+      case AssetClass.CREDIT:
+        return 0.02; // 2% drift for credit
+      case AssetClass.EQUITY:
+        return 0.07; // 7% drift for equity
+      case AssetClass.COMMODITY:
+        return 0.03; // 3% drift for commodities
+      default:
+        return 0.02; // Default drift
+    }
+  }
+  
+  /**
+   * Get the stress factor for an asset class
+   * 
+   * @param assetClass The asset class
+   * @returns The stress factor
+   */
+  private static getAssetClassStressFactor(assetClass: AssetClass): number {
+    // Stress factors by asset class
+    switch (assetClass) {
+      case AssetClass.INTEREST_RATE:
+        return 1.5; // Lower stress for interest rates
+      case AssetClass.FOREIGN_EXCHANGE:
+        return 2.0; // Medium stress for FX
+      case AssetClass.CREDIT:
+        return 2.5; // Higher stress for credit
+      case AssetClass.EQUITY:
+        return 3.0; // Highest stress for equity
+      case AssetClass.COMMODITY:
+        return 2.5; // Higher stress for commodities
+      default:
+        return 2.0; // Default stress factor
+    }
   }
   
   /**

@@ -25,7 +25,12 @@ export default function VMCSAPage() {
   const [templateDescription, setTemplateDescription] = useState<string>("");
   
   // Analysis results state
-  const [recommendations, setRecommendations] = useState<any[]>([]);
+  const [recommendations, setRecommendations] = useState<Array<{
+    type: "continue" | "review" | "terminate" | "other";
+    description: string;
+    riskLevel: "low" | "medium" | "high";
+    reasoning: string;
+  }>>([]);
   const [summary, setSummary] = useState<string>("");
   
   const handleDocumentUploadComplete = (
@@ -46,7 +51,15 @@ export default function VMCSAPage() {
     setActiveStep(1);
   };
   
-  const handleAnalysisComplete = (recs: any[], sum: string) => {
+  const handleAnalysisComplete = (
+    recs: Array<{
+      type: "continue" | "review" | "terminate" | "other";
+      description: string;
+      riskLevel: "low" | "medium" | "high";
+      reasoning: string;
+    }>, 
+    sum: string
+  ) => {
     setRecommendations(recs);
     setSummary(sum);
     setActiveStep(2);
@@ -93,7 +106,6 @@ export default function VMCSAPage() {
               
               <TabsContent value="template">
                 <CSVTemplate
-                  documentId={documentId}
                   documentName={documentName}
                   columns={templateColumns}
                   description={templateDescription}
