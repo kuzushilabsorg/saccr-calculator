@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { Toaster } from 'sonner';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowRight, BarChart3, Calculator, FileSpreadsheet, TrendingUp } from 'lucide-react';
+import { ArrowRight, BarChart3, Calculator, FileSpreadsheet, TrendingUp, ChartBar } from 'lucide-react';
 
 export default function Home() {
   return (
@@ -150,6 +150,54 @@ export default function Home() {
               <Link href="/pfe" className="w-full">
                 <Button className="w-full">
                   Open PFE Calculator
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </Link>
+            </CardFooter>
+          </Card>
+        </div>
+
+        <div className="grid gap-8 md:grid-cols-2 mt-8">
+          {/* Historical VaR Calculator Card */}
+          <Card className="transition-all hover:shadow-md">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-2xl flex items-center gap-2">
+                <ChartBar className="h-6 w-6 text-primary" />
+                Historical VaR Calculator
+              </CardTitle>
+              <CardDescription>
+                Value at Risk using Historical Market Data
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pb-3">
+              <p className="text-muted-foreground">
+                Calculate Value at Risk (VaR) for your portfolio using historical market data across multiple asset classes.
+              </p>
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <div className="rounded-lg border p-3">
+                  <h3 className="font-medium flex items-center gap-2">
+                    <FileSpreadsheet className="h-4 w-4" /> 
+                    Multiple Methodologies
+                  </h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Historical, Monte Carlo, and Parametric approaches
+                  </p>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <h3 className="font-medium flex items-center gap-2">
+                    <BarChart3 className="h-4 w-4" /> 
+                    Comprehensive Analysis
+                  </h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Asset contributions, stress scenarios, and distribution metrics
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+            <CardFooter>
+              <Link href="/var" className="w-full">
+                <Button className="w-full">
+                  Open Historical VaR Calculator
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </Link>
