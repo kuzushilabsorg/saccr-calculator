@@ -32,7 +32,12 @@ export const varPositionSchema = z.object({
     z.number().positive(),
   ]).transform(val => typeof val === 'string' ? parseFloat(val) : val),
   currency: z.string().min(3).max(3),
-  purchaseDate: z.string().datetime().optional(),
+  purchaseDate: z.union([
+    z.string().refine((val) => !isNaN(Date.parse(val)), {
+      message: "Invalid date format. Please use YYYY-MM-DD format."
+    }),
+    z.date()
+  ]).optional().transform(val => val ? new Date(val) : undefined),
 });
 
 // Schema for VaR form input

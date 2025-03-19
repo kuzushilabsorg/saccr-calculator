@@ -1,9 +1,10 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { VaRResult } from '@/lib/var/types';
+import { formatCurrency, formatPercentage } from '@/lib/utils';
 import {
   BarChart,
   Bar,
@@ -70,12 +71,35 @@ export function VaRResults({ results }: VaRResultsProps) {
     '#82CA9D', '#FF6B6B', '#6B66FF', '#FFD166', '#06D6A0',
   ];
   
+  // Determine if external data was used based on metadata
+  const usedExternalData = results.metadata?.dataSource && results.metadata.dataSource !== 'synthetic';
+  const dataSourceName = usedExternalData 
+    ? results.metadata?.dataSource === 'alpha_vantage' 
+      ? 'Alpha Vantage' 
+      : results.metadata?.dataSource === 'coingecko' 
+        ? 'CoinGecko' 
+        : results.metadata?.dataSource === 'fred' 
+          ? 'FRED (Federal Reserve Economic Data)' 
+          : results.metadata?.dataSource
+    : 'Synthetic Data';
+
   return (
     <div className="space-y-6">
       {/* Summary Card */}
       <Card>
         <CardHeader>
           <CardTitle>VaR Summary</CardTitle>
+          <CardDescription>
+            Calculation completed on {new Date(results.timestamp).toLocaleString()}
+            {results.metadata && (
+              <div className="mt-1 text-sm">
+                <span className="font-medium">Data Source:</span> {dataSourceName}
+                {results.metadata.dataSourceNotes && (
+                  <span className="ml-2 text-amber-600">{results.metadata.dataSourceNotes}</span>
+                )}
+              </div>
+            )}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -208,7 +232,7 @@ export function VaRResults({ results }: VaRResultsProps) {
                             <TableCell className="font-medium">{scenario}</TableCell>
                             <TableCell className="text-right">{formatCurrency(value)}</TableCell>
                             <TableCell className="text-right">
-                              {formatPercentage((value / results.portfolioValue) * 100)}
+                              {formatPercentage(((value as number) / results.portfolioValue) * 100)}
                             </TableCell>
                           </TableRow>
                         ))}
@@ -255,51 +279,55 @@ export function VaRResults({ results }: VaRResultsProps) {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      <TableRow>
-                        <TableCell>Minimum Return</TableCell>
-                        <TableCell className="text-right">
-                          {formatPercentage(results.returnDistribution.min * 100)}
-                        </TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell>Maximum Return</TableCell>
-                        <TableCell className="text-right">
-                          {formatPercentage(results.returnDistribution.max * 100)}
-                        </TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell>Mean Return</TableCell>
-                        <TableCell className="text-right">
-                          {formatPercentage(results.returnDistribution.mean * 100)}
-                        </TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell>Median Return</TableCell>
-                        <TableCell className="text-right">
-                          {formatPercentage(results.returnDistribution.median * 100)}
-                        </TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell>Standard Deviation</TableCell>
-                        <TableCell className="text-right">
-                          {formatPercentage(results.returnDistribution.standardDeviation * 100)}
-                        </TableCell>
-                      </TableRow>
-                      {results.returnDistribution.skewness !== undefined && (
-                        <TableRow>
-                          <TableCell>Skewness</TableCell>
-                          <TableCell className="text-right">
-                            {results.returnDistribution.skewness.toFixed(4)}
-                          </TableCell>
-                        </TableRow>
-                      )}
-                      {results.returnDistribution.kurtosis !== undefined && (
-                        <TableRow>
-                          <TableCell>Excess Kurtosis</TableCell>
-                          <TableCell className="text-right">
-                            {results.returnDistribution.kurtosis.toFixed(4)}
-                          </TableCell>
-                        </TableRow>
+                      {results.returnDistribution && (
+                        <>
+                          <TableRow>
+                            <TableCell>Minimum Return</TableCell>
+                            <TableCell className="text-right">
+                              {formatPercentage(results.returnDistribution.min * 100)}
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell>Maximum Return</TableCell>
+                            <TableCell className="text-right">
+                              {formatPercentage(results.returnDistribution.max * 100)}
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell>Mean Return</TableCell>
+                            <TableCell className="text-right">
+                              {formatPercentage(results.returnDistribution.mean * 100)}
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell>Median Return</TableCell>
+                            <TableCell className="text-right">
+                              {formatPercentage(results.returnDistribution.median * 100)}
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell>Standard Deviation</TableCell>
+                            <TableCell className="text-right">
+                              {formatPercentage(results.returnDistribution.standardDeviation * 100)}
+                            </TableCell>
+                          </TableRow>
+                          {results.returnDistribution.skewness !== undefined && (
+                            <TableRow>
+                              <TableCell>Skewness</TableCell>
+                              <TableCell className="text-right">
+                                {results.returnDistribution.skewness.toFixed(4)}
+                              </TableCell>
+                            </TableRow>
+                          )}
+                          {results.returnDistribution.kurtosis !== undefined && (
+                            <TableRow>
+                              <TableCell>Excess Kurtosis</TableCell>
+                              <TableCell className="text-right">
+                                {results.returnDistribution.kurtosis.toFixed(4)}
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </>
                       )}
                     </TableBody>
                   </Table>

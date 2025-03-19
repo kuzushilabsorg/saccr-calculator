@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from 'react';
 import { UseFormReturn } from 'react-hook-form';
 import {
   FormField,
@@ -23,7 +24,9 @@ import {
   VaRTimeHorizon,
   VaRConfidenceLevel,
   VaRCalculationMethod,
+  VaRAssetType,
 } from '@/lib/var/types';
+import { marketDataProviders } from '@/lib/var/market-data-service';
 
 interface VaRParametersFormProps {
   form: UseFormReturn<VaRFormSchemaType>;
@@ -35,6 +38,40 @@ interface VaRParametersFormProps {
  * This component provides form fields for VaR calculation parameters.
  */
 export function VaRParametersForm({ form }: VaRParametersFormProps) {
+  const [useExternalData, setUseExternalData] = useState(form.getValues().useExternalData || false);
+  const [selectedAssetTypes, setSelectedAssetTypes] = useState<VaRAssetType[]>([]);
+  const [availableProviders, setAvailableProviders] = useState(marketDataProviders);
+
+  // Watch for changes in positions to update available providers
+  useEffect(() => {
+    const subscription = form.watch((value, { name }) => {
+      if (name?.startsWith('positions') && name.includes('assetType')) {
+        updateSelectedAssetTypes();
+      }
+    });
+
+    // Initial update
+    updateSelectedAssetTypes();
+
+    return () => subscription.unsubscribe();
+  }, [form]);
+
+  // Update the list of selected asset types from the form
+  const updateSelectedAssetTypes = () => {
+    const positions = form.getValues().positions || [];
+    const assetTypes = positions.map(p => p.assetType).filter((v, i, a) => a.indexOf(v) === i);
+    setSelectedAssetTypes(assetTypes);
+    
+    // Filter providers that support all selected asset types
+    const filteredProviders = marketDataProviders.filter(provider => 
+      assetTypes.every(assetType => 
+        provider.supportedAssetTypes.includes(assetType)
+      )
+    );
+    
+    setAvailableProviders(filteredProviders.length > 0 ? filteredProviders : marketDataProviders);
+  };
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       {/* Time Horizon */}
@@ -149,6 +186,7 @@ export function VaRParametersForm({ form }: VaRParametersFormProps) {
                 max="1000"
                 placeholder="252"
                 {...field}
+                onChange={(e) => field.onChange(parseInt(e.target.value) || 252)}
               />
             </FormControl>
             <FormDescription>
@@ -191,7 +229,10 @@ export function VaRParametersForm({ form }: VaRParametersFormProps) {
             <FormControl>
               <Checkbox
                 checked={field.value}
-                onCheckedChange={field.onChange}
+                onCheckedChange={(checked) => {
+                  field.onChange(checked);
+                  setUseExternalData(!!checked);
+                }}
               />
             </FormControl>
             <div className="space-y-1 leading-none">
@@ -204,6 +245,45 @@ export function VaRParametersForm({ form }: VaRParametersFormProps) {
           </FormItem>
         )}
       />
+
+      {/* Data Source - only shown when useExternalData is true */}
+      {useExternalData && (
+        <FormField
+          control={form.control}
+          name="dataSource"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Data Source</FormLabel>
+              <Select
+                onValueChange={field.onChange}
+                defaultValue={field.value}
+              >
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select data source" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  {availableProviders.map((provider) => (
+                    <SelectItem key={provider.id} value={provider.id}>
+                      {provider.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormDescription>
+                The source of historical market data.
+                {availableProviders.length < marketDataProviders.length && (
+                  <span className="text-yellow-600 block mt-1">
+                    Note: Only showing providers that support all selected asset types.
+                  </span>
+                )}
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      )}
     </div>
   );
 }

@@ -40,7 +40,42 @@ interface VaRPositionFormProps {
 export function VaRPositionForm({ form, index, onRemove }: VaRPositionFormProps) {
   // Currency options
   const currencies = ['USD', 'EUR', 'GBP', 'JPY', 'CHF', 'CAD', 'AUD', 'NZD'];
-  
+
+  // Helper functions to provide context-sensitive guidance for asset identifiers
+  function getAssetIdentifierPlaceholder(assetType: VaRAssetType): string {
+    switch (assetType) {
+      case VaRAssetType.EQUITY:
+        return 'AAPL';
+      case VaRAssetType.FOREIGN_EXCHANGE:
+        return 'EUR_USD';
+      case VaRAssetType.INTEREST_RATE:
+        return 'DFF';
+      case VaRAssetType.COMMODITY:
+        return 'GOLD';
+      case VaRAssetType.CRYPTO:
+        return 'bitcoin';
+      default:
+        return '';
+    }
+  }
+
+  function getAssetIdentifierDescription(assetType: VaRAssetType): string {
+    switch (assetType) {
+      case VaRAssetType.EQUITY:
+        return 'Enter the stock ticker symbol (e.g., AAPL for Apple Inc.)';
+      case VaRAssetType.FOREIGN_EXCHANGE:
+        return 'Enter the currency pair in FORMAT_TO format (e.g., EUR_USD)';
+      case VaRAssetType.INTEREST_RATE:
+        return 'Enter the FRED series ID (e.g., DFF for Federal Funds Rate)';
+      case VaRAssetType.COMMODITY:
+        return 'Enter the commodity identifier (e.g., GOLD, SILVER)';
+      case VaRAssetType.CRYPTO:
+        return 'Enter the cryptocurrency ID (e.g., bitcoin, ethereum)';
+      default:
+        return 'Enter the asset identifier';
+    }
+  }
+
   return (
     <Card>
       <CardContent className="pt-6">
@@ -98,10 +133,10 @@ export function VaRPositionForm({ form, index, onRemove }: VaRPositionFormProps)
               <FormItem>
                 <FormLabel>Asset Identifier</FormLabel>
                 <FormControl>
-                  <Input placeholder="e.g., AAPL, BTC-USD, EUR/USD" {...field} />
+                  <Input placeholder={getAssetIdentifierPlaceholder(form.getValues(`positions.${index}.assetType`))} {...field} />
                 </FormControl>
                 <FormDescription>
-                  Ticker symbol, currency pair, or other identifier
+                  {getAssetIdentifierDescription(form.getValues(`positions.${index}.assetType`))}
                 </FormDescription>
                 <FormMessage />
               </FormItem>

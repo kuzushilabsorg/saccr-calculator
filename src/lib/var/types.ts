@@ -52,11 +52,23 @@ export interface MarketDataPoint {
   volume?: number;
 }
 
+/**
+ * Historical Market Data interface
+ */
 export interface HistoricalMarketData {
   assetIdentifier: string;
   assetType: VaRAssetType;
   currency: string;
   data: MarketDataPoint[];
+  metadata?: {
+    dataSource: string;
+    dataSourceNotes?: string;
+    dataPoints?: number;
+    startDate?: string;
+    endDate?: string;
+    seriesId?: string;
+    originalProvider?: string;
+  };
 }
 
 // VaR Calculation Parameters
@@ -78,17 +90,16 @@ export interface VaRInput {
 // VaR Calculation Results
 export interface VaRResult {
   valueAtRisk: number;
+  varPercentage: number;
+  expectedShortfall: number;
+  diversificationBenefit: number;
   portfolioValue: number;
-  varPercentage: number; // VaR as percentage of portfolio value
-  expectedShortfall: number; // Conditional VaR / Expected Shortfall
-  assetContributions: {
-    [assetIdentifier: string]: {
-      valueAtRisk: number;
-      contribution: number; // Percentage contribution to total VaR
-    };
-  };
-  diversificationBenefit: number; // Reduction in VaR due to diversification
-  returnDistribution: {
+  assetContributions: Record<string, {
+    valueAtRisk: number;
+    contribution: number;
+  }>;
+  stressScenarios?: Record<string, number>;
+  returnDistribution?: {
     min: number;
     max: number;
     mean: number;
@@ -97,11 +108,22 @@ export interface VaRResult {
     skewness?: number;
     kurtosis?: number;
   };
-  stressScenarios?: {
-    [scenarioName: string]: number;
+  parameters: {
+    confidenceLevel: string;
+    timeHorizon: string;
+    calculationMethod: string;
+    lookbackPeriod: number;
+    includeCorrelations: boolean;
   };
-  timestamp: string;
-  parameters: VaRParameters;
+  timestamp: number;
+  metadata?: {
+    dataSource: string;
+    dataSourceNotes?: string;
+    dataPoints?: number;
+    startDate?: string;
+    endDate?: string;
+    assetDataSources?: Record<string, string>;
+  };
 }
 
 // Form Input Schema
