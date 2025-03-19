@@ -23,9 +23,10 @@ export enum PFEConfidenceLevel {
 
 // PFE Calculation Method
 export enum PFECalculationMethod {
-  REGULATORY_SA_CCR = 'regulatory_sa_ccr',
-  INTERNAL_MODEL = 'internal_model',
-  HISTORICAL_SIMULATION = 'historical_simulation',
+  REGULATORY_STANDARDISED_APPROACH = 'regulatory_standardised_approach',
+  MONTE_CARLO_SIMULATION = 'monte_carlo_simulation',
+  INTERNAL_MODEL_METHOD = 'internal_model_method',
+  HISTORICAL_SIMULATION_METHOD = 'historical_simulation_method',
 }
 
 // PFE Netting Set Information

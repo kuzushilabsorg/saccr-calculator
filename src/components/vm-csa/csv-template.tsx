@@ -12,7 +12,7 @@ interface CSVTemplateProps {
   description: string;
 }
 
-export function CSVTemplate({ documentId, documentName, columns, description }: CSVTemplateProps) {
+export function CSVTemplate({ documentName, columns, description }: Omit<CSVTemplateProps, 'documentId'>) {
   const [isDownloading, setIsDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
@@ -71,7 +71,7 @@ export function CSVTemplate({ documentId, documentName, columns, description }: 
             <Info className="h-4 w-4" />
             <AlertTitle>Document Analysis Complete</AlertTitle>
             <AlertDescription>
-              We've analyzed your VM-CSA document and generated a CSV template for you to fill with your client data.
+              We&apos;ve analyzed your VM-CSA document and generated a CSV template for you to fill with your client data.
             </AlertDescription>
           </Alert>
           

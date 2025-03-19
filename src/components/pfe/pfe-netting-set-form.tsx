@@ -194,9 +194,10 @@ export default function PFENettingSetForm({ form }: PFENettingSetFormProps) {
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value={PFECalculationMethod.REGULATORY_SA_CCR}>Regulatory SA-CCR</SelectItem>
-                    <SelectItem value={PFECalculationMethod.INTERNAL_MODEL}>Internal Model</SelectItem>
-                    <SelectItem value={PFECalculationMethod.HISTORICAL_SIMULATION}>Historical Simulation</SelectItem>
+                    <SelectItem value={PFECalculationMethod.REGULATORY_STANDARDISED_APPROACH}>Regulatory Standardised Approach</SelectItem>
+                    <SelectItem value={PFECalculationMethod.INTERNAL_MODEL_METHOD}>Internal Model Method</SelectItem>
+                    <SelectItem value={PFECalculationMethod.HISTORICAL_SIMULATION_METHOD}>Historical Simulation Method</SelectItem>
+                    <SelectItem value={PFECalculationMethod.MONTE_CARLO_SIMULATION}>Monte Carlo Simulation</SelectItem>
                   </SelectContent>
                 </Select>
                 <FormMessage />
