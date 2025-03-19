@@ -11,36 +11,21 @@ import { PFEInput } from '@/lib/pfe/types';
 export async function POST(request: NextRequest) {
   try {
     // Parse request body
-    const requestData = await request.json();
+    const body = await request.json();
     
-    // Validate input data
-    if (!requestData.trades || !requestData.nettingSet) {
+    // Validate input
+    if (!body.nettingSet || !body.trades) {
       return NextResponse.json(
-        { error: 'Missing required fields: trades and nettingSet are required' },
+        { error: "Missing required fields: nettingSet and trades" },
         { status: 400 }
       );
     }
     
-    // Convert string values to numbers
+    // Prepare input for PFE calculator
     const input: PFEInput = {
-      trades: requestData.trades.map((trade: any) => ({
-        ...trade,
-        notionalAmount: Number(trade.notionalAmount),
-        currentMarketValue: Number(trade.currentMarketValue),
-        volatility: trade.volatility ? Number(trade.volatility) : undefined,
-      })),
-      nettingSet: {
-        ...requestData.nettingSet,
-        thresholdAmount: requestData.nettingSet.thresholdAmount ? Number(requestData.nettingSet.thresholdAmount) : undefined,
-        minimumTransferAmount: requestData.nettingSet.minimumTransferAmount ? Number(requestData.nettingSet.minimumTransferAmount) : undefined,
-        marginPeriodOfRisk: requestData.nettingSet.marginPeriodOfRisk ? Number(requestData.nettingSet.marginPeriodOfRisk) : undefined,
-      },
-      collateral: requestData.collateral ? requestData.collateral.map((col: any) => ({
-        ...col,
-        collateralAmount: Number(col.collateralAmount),
-        haircut: col.haircut ? Number(col.haircut) : undefined,
-        stressedHaircut: col.stressedHaircut ? Number(col.stressedHaircut) : undefined,
-      })) : undefined,
+      nettingSet: body.nettingSet,
+      trades: body.trades,
+      collateral: body.collateral || [],
     };
     
     // Calculate PFE
@@ -49,9 +34,9 @@ export async function POST(request: NextRequest) {
     // Return result
     return NextResponse.json(result);
   } catch (error) {
-    console.error('Error calculating PFE:', error);
+    console.error("Error calculating PFE:", error);
     return NextResponse.json(
-      { error: 'Failed to calculate PFE', details: (error as Error).message },
+      { error: "Failed to calculate PFE" },
       { status: 500 }
     );
   }

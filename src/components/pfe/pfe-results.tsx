@@ -9,7 +9,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   LineChart, 
@@ -96,7 +95,7 @@ export default function PFEResults({ result, formData }: PFEResultsProps) {
 
   // Format asset class breakdown data for chart
   const assetClassBreakdownData = Object.entries(result.assetClassBreakdown)
-    .filter(([_, value]) => value > 0)
+    .filter(([, value]) => value > 0)
     .map(([assetClass, value]) => ({
       assetClass: formatAssetClass(assetClass as AssetClass),
       value,
