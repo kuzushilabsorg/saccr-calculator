@@ -2,7 +2,7 @@
 
 A comprehensive web application suite for financial risk management and regulatory compliance, featuring tools for SA-CCR calculation, Potential Future Exposure (PFE), Value at Risk (VaR), Initial Margin calculation, and VM-CSA document analysis.
 
-![Risk Suite Screenshot](https://via.placeholder.com/800x400?text=Kuzushi+Labs+Risk+Suite)
+![Risk Suite Screenshot](/public/images/demo.png)
 
 ## Overview
 
@@ -11,6 +11,7 @@ The Kuzushi Labs Risk & Regulatory Suite is a full-stack application designed fo
 ### Key Features
 
 #### 1. SA-CCR Calculator
+
 - **Manual Calculation Interface**: Input trade details, netting set information, and collateral data through an intuitive form interface
 - **CSV Upload Functionality**: Process batch calculations by uploading trade data in CSV format
 - **Comprehensive Results**: View detailed breakdown of exposure calculations including Replacement Cost (RC) and Potential Future Exposure (PFE)
@@ -20,12 +21,14 @@ The Kuzushi Labs Risk & Regulatory Suite is a full-stack application designed fo
 - **Audit Trail**: Detailed calculation steps for regulatory transparency
 
 #### 2. Potential Future Exposure (PFE) Calculator
+
 - **Advanced Simulation**: Monte Carlo simulation for potential future exposure calculations
 - **Risk Factor Modeling**: Sophisticated modeling of market risk factors
 - **Flexible Time Horizons**: Calculate PFE across various time horizons
 - **Comprehensive Reporting**: Detailed PFE profiles and statistics
 
 #### 3. Value at Risk (VaR) Calculator
+
 - **Multiple Methodologies**: Support for Historical Simulation, Monte Carlo, and Parametric approaches
 - **Configurable Parameters**: Adjustable confidence levels and time horizons
 - **Portfolio Analysis**: Asset contribution and diversification benefit analysis
@@ -33,12 +36,14 @@ The Kuzushi Labs Risk & Regulatory Suite is a full-stack application designed fo
 - **Stress Testing**: Scenario analysis and stress testing capabilities
 
 #### 4. Initial Margin Calculator
+
 - **Dual Approach Support**: Implementations for both Grid/Schedule (BCBS-IOSCO) and ISDA SIMM methodologies
 - **Asset Class Coverage**: Support for all major asset classes
 - **Netting Set Analysis**: Proper handling of netting and collateral
 - **Regulatory Alignment**: Compliant with UMR (Uncleared Margin Rules) requirements
 
 #### 5. VM-CSA Analysis Tool
+
 - **Document Analysis**: Upload and analyze VM-CSA documents with AI assistance
 - **Trading Recommendations**: Generate insights for trading decisions based on legal agreement terms
 - **Client Data Integration**: Combine document analysis with client trading data
@@ -175,6 +180,7 @@ The framework specifies supervisory parameters including:
 ### 1. SA-CCR Calculator
 
 #### Manual Calculation
+
 1. Navigate to the SACCR Calculator form
 2. Fill in the Netting Set details (ID, margin type, threshold amount, etc.)
 3. Add trade information (asset class, transaction type, notional amount, etc.)
@@ -182,6 +188,7 @@ The framework specifies supervisory parameters including:
 5. Click "Calculate" to view the SACCR exposure results
 
 #### CSV Upload
+
 1. Prepare a CSV file with trade data following the template format
 2. Navigate to the CSV Upload tab
 3. Upload your CSV file
@@ -207,6 +214,7 @@ The framework specifies supervisory parameters including:
 ### 4. Initial Margin Calculator
 
 #### Grid/Schedule Approach
+
 1. Navigate to the Initial Margin Grid/Schedule page
 2. Enter portfolio details and select asset classes
 3. Input position data for each asset class
@@ -214,6 +222,7 @@ The framework specifies supervisory parameters including:
 5. Calculate to view the initial margin requirements
 
 #### ISDA SIMM Approach
+
 1. Navigate to the ISDA SIMM page
 2. Enter portfolio details with risk sensitivities
 3. Configure SIMM parameters according to ISDA specifications
@@ -238,11 +247,9 @@ The application uses Zod for robust schema validation, ensuring that all inputs 
 // Example of the schema validation for numeric fields
 export const numberSchema = z
   .union([
-    z
-      .string()
-      .refine((val) => !isNaN(parseFloat(val)), {
-        message: 'Must be a valid number',
-      }),
+    z.string().refine((val) => !isNaN(parseFloat(val)), {
+      message: 'Must be a valid number',
+    }),
     z.number(),
   ])
   .transform((val) => {
