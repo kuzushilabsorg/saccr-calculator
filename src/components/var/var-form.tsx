@@ -12,6 +12,7 @@ import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { VaRParametersForm } from './var-parameters-form';
 import { VaRPositionsForm } from './var-positions-form';
 import { VaRResults } from './var-results';
+import { VaRCsvUpload } from './var-csv-upload';
 import { varFormSchema, VaRFormSchemaType } from '@/lib/var/schema';
 import { v4 as uuidv4 } from 'uuid';
 import { VaRAssetType, VaRCalculationMethod, VaRConfidenceLevel, VaRTimeHorizon, VaRResult } from '@/lib/var/types';
@@ -108,9 +109,10 @@ export function VaRForm() {
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="grid w-full grid-cols-3">
+              <TabsList className="grid w-full grid-cols-4">
                 <TabsTrigger value="parameters">Parameters</TabsTrigger>
                 <TabsTrigger value="positions">Positions</TabsTrigger>
+                <TabsTrigger value="csv-upload">CSV Upload</TabsTrigger>
                 <TabsTrigger value="results" disabled={!result}>
                   Results
                 </TabsTrigger>
@@ -157,6 +159,18 @@ export function VaRForm() {
               
               <TabsContent value="positions" className="py-4">
                 <VaRPositionsForm form={form} />
+              </TabsContent>
+              
+              <TabsContent value="csv-upload" className="py-4">
+                <VaRCsvUpload 
+                  onResult={(csvResult) => {
+                    setResult(csvResult);
+                    setActiveTab('results');
+                  }}
+                  onError={(errorMessage) => {
+                    setError(errorMessage);
+                  }}
+                />
               </TabsContent>
               
               <TabsContent value="results" className="py-4">

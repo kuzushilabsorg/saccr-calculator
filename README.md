@@ -34,6 +34,9 @@ The Kuzushi Labs Risk & Regulatory Suite is a full-stack application designed fo
 - **Portfolio Analysis**: Asset contribution and diversification benefit analysis
 - **External Data Integration**: Connect to various market data providers
 - **Stress Testing**: Scenario analysis and stress testing capabilities
+- **CSV Upload Functionality**: Upload historical market data in CSV format for VaR calculations
+- **Data Validation**: Automatic validation of required columns and data format
+- **Flexible Asset Support**: Process data for multiple asset types in a single upload
 
 #### 4. Initial Margin Calculator
 
